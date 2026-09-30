@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Kalceto helps Shkoder find players, fair matches, and nearby indoor football pitches." />
+    <title>Kalceto | Find your game in Shkoder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="shell nav-wrap">
+        <a class="brand" href="#home" aria-label="Kalceto home">
+          <span class="brand-mark"><i></i><i></i><i></i></span>
+          <span>KALCETO<small>SHKODER</small></span>
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+          <span class="visually-hidden">Open menu</span><span></span><span></span>
+        </button>
+        <nav id="primary-nav" class="primary-nav" aria-label="Main navigation">
+          <a href="#matches">Find a match</a>
+          <a href="#players">Players</a>
+          <a href="#pitches">Pitches</a>
+          <a href="#teams">Teams</a>
+          <a href="#about">About</a>
+        </nav>
+        <button class="button button-dark profile-trigger" type="button">Sign in</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section id="home" class="hero">
+        <div class="hero-photo photo-frame">
+          <img src="images/hero.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Placeholder for a real Kalceto game photo" />
+          <span class="photo-note">Photo: Friday night at your pitch</span>
+        </div>
+        <div class="hero-shade"></div>
+        <div class="shell hero-content">
+          <p class="eyebrow light">INDOOR FOOTBALL, SHKODER</p>
+          <h1>Less waiting.<br /><em>More football.</em></h1>
+          <p class="hero-copy">Find players around your level, get a fair match together, and pick a pitch that works for everyone.</p>
+          <div class="hero-actions">
+            <a class="button button-accent" href="#matches">Find a match <span aria-hidden="true">→</span></a>
+            <button class="button button-ghost profile-trigger" type="button">Create profile</button>
+          </div>
+          <div class="hero-bottom">
+            <span class="live-dot"></span> 24 players looking to play this week
+          </div>
+        </div>
+        <a class="scroll-cue" href="#matches">SCROLL <span></span></a>
+      </section>
+
+      <section id="matches" class="section match-section">
+        <div class="shell">
+          <div class="section-heading split-heading">
+            <div>
+              <p class="eyebrow">FIND A GAME</p>
+              <h2>Set up your next match.</h2>
+            </div>
+            <p>Pick how you want to play. Kalceto keeps the skill range, positions and travel distance sensible.</p>
+          </div>
+          <div class="match-layout">
+            <div class="match-builder">
+              <div class="mode-tabs" role="tablist" aria-label="Match type">
+                <button class="mode-tab active" role="tab" aria-selected="true" data-mode="Solo">Solo</button>
+                <button class="mode-tab" role="tab" aria-selected="false" data-mode="With friends">With friends</button>
+                <button class="mode-tab" role="tab" aria-selected="false" data-mode="My team">My team</button>
+              </div>
+              <div class="field-grid">
+                <label>When do you want to play?
+                  <select id="match-time"><option>Tonight, after 19:00</option><option>Tomorrow evening</option><option>This weekend</option></select>
+                </label>
+                <label>Area
+                  <select id="match-area"><option>Any area in Shkoder</option><option>Parruce</option><option>Rus</option><option>Perash</option><option>Bahcallek</option></select>
+                </label>
+              </div>
+              <div class="skill-row">
+                <div><span>My playing level</span><strong id="skill-label">Regular</strong></div>
+                <input id="skill-range" type="range" min="1" max="5" value="3" aria-label="Playing level" />
+                <div class="skill-scale"><span>New</span><span>Regular</span><span>Strong</span></div>
+              </div>
+              <div class="positions-row">
+                <span>Preferred position</span>
+                <div class="chip-set" aria-label="Preferred position">
+                  <button class="filter-chip" type="button">Goalkeeper</button><button class="filter-chip active" type="button">Defender</button><button class="filter-chip" type="button">Midfielder</button><button class="filter-chip" type="button">Striker</button>
+                </div>
+              </div>
+              <button id="match-button" class="button button-accent button-wide" type="button">Show suitable games <span aria-hidden="true">→</span></button>
+            </div>
+            <aside class="match-result" aria-live="polite">
+              <p class="result-kicker">SUGGESTED FOR YOU</p>
+              <div class="result-score"><span id="match-score">86</span><small>match score</small></div>
+              <h3 id="match-title">Balanced 5v5 tonight</h3>
+              <p id="match-description">Players around your level, two teams still need a defender.</p>
+              <div class="result-meta"><span><b id="player-count">7</b> / 10 players</span><span>19:30</span></div>
+              <button class="text-button join-trigger" type="button">Join this game <span aria-hidden="true">→</span></button>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="players" class="section players-section">
+        <div class="shell">
+          <div class="section-heading player-heading">
+            <div><p class="eyebrow">PLAYERS ONLINE</p><h2>People ready for a game.</h2></div>
+            <div class="online-count"><span class="live-dot"></span><strong id="online-total">8</strong> online now</div>
+          </div>
+          <div class="player-tools">
+            <label class="search-field"><span class="visually-hidden">Search players</span><input id="player-search" type="search" placeholder="Search a player" /></label>
+            <select id="position-filter" aria-label="Filter by position"><option value="all">All positions</option><option>Goalkeeper</option><option>Defender</option><option>Midfielder</option><option>Striker</option></select>
+            <select id="level-filter" aria-label="Filter by level"><option value="all">All levels</option><option>New</option><option>Regular</option><option>Strong</option></select>
+          </div>
+          <div id="player-list" class="player-list"></div>
+          <button id="show-more-players" class="button button-outline" type="button">Show more players</button>
+        </div>
+      </section>
+
+      <section class="community-strip">
+        <div class="shell strip-grid">
+          <div><p class="eyebrow light">HOW IT WORKS</p><h2>A fair match is three simple things.</h2></div>
+          <ol class="steps">
+            <li><b>01</b><span>Set your level, position and time.</span></li>
+            <li><b>02</b><span>Bring friends, or join players looking for the same game.</span></li>
+            <li><b>03</b><span>Meet at the pitch that makes the most sense for the group.</span></li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="pitches" class="section pitch-section">
+        <div class="shell">
+          <div class="section-heading split-heading"><div><p class="eyebrow">PITCH DIRECTORY</p><h2>Find your local kalceto.</h2></div><p>Real pitch names and Google Maps links can be dropped into the data section in <code>app.js</code> when you have them.</p></div>
+          <div id="pitch-list" class="pitch-list"></div>
+        </div>
+      </section>
+
+      <section id="teams" class="section team-section">
+        <div class="shell team-layout">
+          <div class="team-copy"><p class="eyebrow">PLAY TOGETHER</p><h2>Your people.<br />Your lineup.</h2><p>Make a team once your group is ready. Invite friends, choose a name, set your positions, and look for another side to play.</p><button class="button button-dark team-trigger" type="button">Create a team <span aria-hidden="true">→</span></button></div>
+          <div class="lineup-board" aria-label="Example 5-a-side team lineup">
+            <div class="board-title"><span>SHKODRA UNITED</span><small>5-A-SIDE LINEUP</small></div>
+            <div class="pitch-lines"></div>
+            <div class="formation player-a"><span>AR</span><small>GK</small></div><div class="formation player-b"><span>EV</span><small>DEF</small></div><div class="formation player-c"><span>MB</span><small>MID</small></div><div class="formation player-d"><span>KR</span><small>ST</small></div><div class="formation player-e"><span>DS</span><small>ST</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="gallery-section">
+        <div class="shell"><div class="section-heading"><p class="eyebrow">REAL GAMES IN SHKODER</p><h2>The photo slots are waiting for your games.</h2></div></div>
+        <div class="gallery-grid">
+          <figure class="gallery-photo wide"><img src="images/gallery-1.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Placeholder for a real match photo" /><figcaption>Photo: match action here</figcaption></figure>
+          <figure class="gallery-photo"><img src="images/gallery-2.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Placeholder for a pitch photo" /><figcaption>Photo: your regular pitch</figcaption></figure>
+          <figure class="gallery-photo"><img src="images/gallery-3.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Placeholder for a player photo" /><figcaption>Photo: player moment here</figcaption></figure>
+        </div>
+      </section>
+
+      <section id="tournaments" class="tournament-section">
+        <div class="shell tournament-inner"><p class="eyebrow light">TOURNAMENTS</p><h2>Next up:<br /><em>your local cup.</em></h2><p>Team tournaments at Shkoder pitches are on the way. Put your side together now.</p><button class="button button-ghost team-trigger" type="button">Register your interest</button><span class="tournament-stamp">COMING<br />SOON</span></div>
+      </section>
+
+      <section id="about" class="section about-section">
+        <div class="shell"><div class="section-heading split-heading"><div><p class="eyebrow">ABOUT KALCETO</p><h2>Made here, for here.</h2></div><p>Kalceto started as a school project with one straightforward aim: it should be easier to organise a football game in Shkoder.</p></div><div class="founder-list">
+          <article><img src="images/team-1.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Photo placeholder for Aldo Vukaj" /><h3>Aldo Vukaj</h3><p>Website development</p></article>
+          <article><img src="images/team-2.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Photo placeholder for Enes Hysaj" /><h3>Enes Hysaj</h3><p>App development</p></article>
+          <article><img src="images/team-3.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Photo placeholder for Eris Bajraktari" /><h3>Eris Bajraktari</h3><p>Skill verification</p></article>
+          <article><img src="images/team-4.jpg" onerror="this.onerror=null;this.src='images/placeholder.svg'" alt="Photo placeholder for Amer Elezi" /><h3>Amer Elezi</h3><p>Media and marketing</p></article>
+        </div></div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><div class="shell footer-grid"><a class="brand" href="#home"><span class="brand-mark"><i></i><i></i><i></i></span><span>KALCETO<small>SHKODER</small></span></a><p>Find the people. Find the pitch. Play.</p><a href="mailto:hello@kalceto.al">hello@kalceto.al</a><small>School project concept · Shkoder, Albania</small></div></footer>
+
+    <dialog id="account-dialog" class="dialog"><button class="dialog-close" type="button" aria-label="Close dialog">×</button><p class="eyebrow">GET STARTED</p><h2>Make your player profile.</h2><p>Tell us the basics now. A real version of Kalceto would securely save this profile before you look for games.</p><form id="profile-form"><label>Your name<input required placeholder="Your name" /></label><label>Best position<select><option>Midfielder</option><option>Goalkeeper</option><option>Defender</option><option>Striker</option></select></label><label>Area in Shkoder<select><option>Choose an area</option><option>Parruce</option><option>Rus</option><option>Perash</option><option>Bahcallek</option></select></label><button class="button button-accent button-wide" type="submit">Create profile</button></form></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
