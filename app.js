@@ -75,9 +75,126 @@ document.querySelector("#match-button").addEventListener("click", () => {
 });
 
 const dialog = document.querySelector("#account-dialog");
-document.querySelectorAll(".profile-trigger").forEach((button) => button.addEventListener("click", () => dialog.showModal()));
+const supabaseSettings = window.KALCETO_SUPABASE;
+const supabaseClient = window.supabase && supabaseSettings
+  ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.publishableKey)
+  : null;
+let signedInUser = null;
+let pendingEmail = "";
+let authIntent = "signin";
+
+function setAuthView(view) {
+  document.querySelectorAll(".auth-panel").forEach((panel) => { panel.hidden = panel.id !== `${view}-step`; });
+}
+
+function setAuthStatus(id, message, isError = false) {
+  const element = document.querySelector(id);
+  element.textContent = message;
+  element.classList.toggle("error", isError);
+}
+
+function updateAccountUi(user) {
+  signedInUser = user;
+  document.querySelectorAll(".profile-trigger").forEach((button) => { button.textContent = user ? "My profile" : button.closest(".hero-actions") ? "Create profile" : "Sign in"; });
+}
+
+document.querySelectorAll(".profile-trigger").forEach((button) => button.addEventListener("click", () => {
+  if (!supabaseClient) {
+    showToast("Authentication is still being configured. Please refresh in a moment.");
+    return;
+  }
+  setAuthView(signedInUser ? "profile" : "email");
+  dialog.showModal();
+}));
 document.querySelector(".dialog-close").addEventListener("click", () => dialog.close());
-document.querySelector("#profile-form").addEventListener("submit", (event) => { event.preventDefault(); dialog.close(); showToast("Profile saved for this demo. You can now look for games."); });
+
+document.querySelector("#email-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  pendingEmail = document.querySelector("#auth-email").value.trim();
+  if (!event.currentTarget.reportValidity()) return;
+  authIntent = event.submitter?.dataset.authIntent ?? "signin";
+  const buttons = event.currentTarget.querySelectorAll("button");
+  buttons.forEach((button) => { button.disabled = true; });
+  setAuthStatus("#auth-status", "Sending your code...");
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email: pendingEmail,
+    options: { shouldCreateUser: authIntent === "signup" }
+  });
+  buttons.forEach((button) => { button.disabled = false; });
+  if (error) {
+    const message = authIntent === "signin" && /sign.?up|not.*found|user/i.test(error.message)
+      ? "No Kalceto account exists for that email. Choose Create account instead."
+      : error.message;
+    setAuthStatus("#auth-status", message, true);
+    return;
+  }
+  document.querySelector("#code-email").textContent = pendingEmail;
+  document.querySelector("#auth-code").value = "";
+  setAuthStatus("#code-status", "");
+  setAuthView("code");
+  document.querySelector("#auth-code").focus();
+});
+
+document.querySelector("#code-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button");
+  button.disabled = true;
+  setAuthStatus("#code-status", "Verifying your code...");
+  const { data, error } = await supabaseClient.auth.verifyOtp({ email: pendingEmail, token: document.querySelector("#auth-code").value.trim(), type: "email" });
+  button.disabled = false;
+  if (error) {
+    setAuthStatus("#code-status", "That code did not work. Check it and try again.", true);
+    return;
+  }
+  updateAccountUi(data.user);
+  setAuthView("profile");
+  setAuthStatus("#profile-status", "Signed in successfully.");
+});
+
+document.querySelector("#change-email").addEventListener("click", () => setAuthView("email"));
+document.querySelector("#profile-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector("button");
+  button.disabled = true;
+  const { error } = await supabaseClient.auth.updateUser({ data: {
+    display_name: document.querySelector("#profile-name").value.trim(),
+    position: document.querySelector("#profile-position").value,
+    area: document.querySelector("#profile-area").value,
+    profile_complete: true
+  } });
+  button.disabled = false;
+  if (error) {
+    setAuthStatus("#profile-status", error.message, true);
+    return;
+  }
+  dialog.close();
+  showToast("Your player profile is saved.");
+});
+
+document.querySelector(".sign-out").addEventListener("click", async () => {
+  await supabaseClient.auth.signOut();
+  updateAccountUi(null);
+  dialog.close();
+  showToast("You are signed out.");
+});
+
+document.querySelectorAll(".social-login").forEach((button) => button.addEventListener("click", async () => {
+  const provider = button.dataset.provider;
+  if (!supabaseSettings.providers?.[provider]) {
+    setAuthStatus("#auth-status", `${button.textContent} login is not connected yet. It needs to be enabled in Supabase first.`, true);
+    return;
+  }
+  setAuthStatus("#auth-status", `Opening ${button.textContent} sign-in...`);
+  const options = { redirectTo: window.location.href };
+  if (provider === "azure") options.scopes = "email";
+  const { error } = await supabaseClient.auth.signInWithOAuth({ provider, options });
+  if (error) setAuthStatus("#auth-status", error.message, true);
+}));
+
+if (supabaseClient) {
+  supabaseClient.auth.getSession().then(({ data }) => updateAccountUi(data.session?.user ?? null));
+  supabaseClient.auth.onAuthStateChange((_event, session) => updateAccountUi(session?.user ?? null));
+}
 document.querySelectorAll(".team-trigger").forEach((button) => button.addEventListener("click", () => showToast("Team creation will be ready when player accounts are connected.")));
 document.addEventListener("click", (event) => { const connect = event.target.closest(".player-connect"); if (connect) showToast(`Friend request sent to ${connect.dataset.name}.`); if (event.target.closest(".join-trigger")) showToast("You are marked as interested in this game."); });
 
