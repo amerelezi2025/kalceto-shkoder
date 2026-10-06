@@ -1,7 +1,11 @@
-// This is a browser-safe publishable key. Never put a secret or service-role key here.
+// Leave apiBase empty to use this same website when it is started with `npm start`.
+window.KALCETO_AUTH = {
+  apiBase: ""
+};
+
+// Optional social login later. Email codes are sent by the Kalceto server, not this key.
 window.KALCETO_SUPABASE = {
   url: "https://eviryleblskmpbzotqyt.supabase.co",
   publishableKey: "sb_publishable_-S4SyMtHdwj6ko48DyRXFA_2RKuvqcg",
-  // Switch a provider to true only after adding its credentials in Supabase.
   providers: { google: false, apple: false, azure: false }
 };

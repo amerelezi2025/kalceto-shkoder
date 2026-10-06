@@ -1,0 +1,11 @@
+{
+  "name": "kalceto-shkoder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^6.10.1"
+  }
+}
