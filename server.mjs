@@ -83,10 +83,30 @@ function saveCodes(map) {
   writeJson("codes.json", map);
 }
 
-function json(response, status, payload, extraHeaders = {}) {
+const allowedOrigins = new Set([
+  "https://amerelezi2025.github.io",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
+  ...(process.env.FRONTEND_ORIGIN || "").split(",").map((value) => value.trim()).filter(Boolean)
+]);
+
+function corsHeaders(request) {
+  const origin = request.headers.origin;
+  if (!origin) return {};
+  if (!allowedOrigins.has(origin) && !origin.endsWith(".onrender.com")) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+  };
+}
+
+function json(response, status, payload, extraHeaders = {}, request = null) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...(request ? corsHeaders(request) : {}),
     ...extraHeaders
   });
   response.end(JSON.stringify(payload));
@@ -139,6 +159,12 @@ function sessionCookie(token, clear = false) {
     clear ? "Max-Age=0" : "Max-Age=1209600"
   ];
   return parts.join("; ");
+}
+
+function sessionFromRequest(request) {
+  const header = request.headers.authorization || "";
+  const bearer = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  return readSession(bearer || parseCookies(request).kalceto_session);
 }
 
 async function readBody(request) {
@@ -194,47 +220,47 @@ async function issueCode(email, intent) {
 async function handleAuth(request, response, pathname) {
   try {
     if (request.method === "GET" && pathname === "/api/auth/session") {
-      const user = readSession(parseCookies(request).kalceto_session);
-      return json(response, 200, { user: user ? publicUser(user) : null });
+      const user = sessionFromRequest(request);
+      return json(response, 200, { user: user ? publicUser(user) : null }, {}, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/logout") {
-      return json(response, 200, { ok: true }, { "Set-Cookie": sessionCookie("", true) });
+      return json(response, 200, { ok: true }, { "Set-Cookie": sessionCookie("", true) }, request);
     }
 
     const body = await readBody(request);
     const email = normalizeEmail(body.email);
 
     if (request.method === "POST" && pathname === "/api/auth/lookup") {
-      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." });
+      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." }, {}, request);
       const user = findUser(email);
-      return json(response, 200, { exists: Boolean(user?.verified) });
+      return json(response, 200, { exists: Boolean(user?.verified) }, {}, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/send-code") {
-      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." });
+      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." }, {}, request);
       const intent = body.intent === "signup" ? "signup" : "signin";
       const user = findUser(email);
       if (intent === "signin" && !user?.verified) {
-        return json(response, 404, { error: "No Kalceto account exists for that email. Choose Create account instead." });
+        return json(response, 404, { error: "No Kalceto account exists for that email. Choose Create account instead." }, {}, request);
       }
       if (intent === "signup" && user?.verified) {
-        return json(response, 409, { error: "That email already has a Kalceto account. Choose Sign in instead." });
+        return json(response, 409, { error: "That email already has a Kalceto account. Choose Sign in instead." }, {}, request);
       }
       await issueCode(email, intent);
-      return json(response, 200, { sent: true });
+      return json(response, 200, { sent: true }, {}, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/verify") {
       const code = String(body.code || "").trim();
       const map = codes();
       const entry = map[email];
-      if (!entry || entry.expiresAt < Date.now()) return json(response, 400, { error: "That code has expired. Request a new one." });
-      if (entry.attempts >= 5) return json(response, 429, { error: "Too many attempts. Request a new code." });
+      if (!entry || entry.expiresAt < Date.now()) return json(response, 400, { error: "That code has expired. Request a new one." }, {}, request);
+      if (entry.attempts >= 5) return json(response, 429, { error: "Too many attempts. Request a new code." }, {}, request);
       entry.attempts += 1;
       if (entry.hash !== hashValue(`${email}:${code}`)) {
         saveCodes(map);
-        return json(response, 400, { error: "That code did not work. Check it and try again." });
+        return json(response, 400, { error: "That code did not work. Check it and try again." }, {}, request);
       }
       delete map[email];
       saveCodes(map);
@@ -247,12 +273,13 @@ async function handleAuth(request, response, pathname) {
         user.verified = true;
       }
       saveUsers(list);
-      return json(response, 200, { user: publicUser(user) }, { "Set-Cookie": sessionCookie(signSession(email)) });
+      const token = signSession(email);
+      return json(response, 200, { user: publicUser(user), token }, { "Set-Cookie": sessionCookie(token) }, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/profile") {
-      const user = readSession(parseCookies(request).kalceto_session);
-      if (!user) return json(response, 401, { error: "Please sign in first." });
+      const user = sessionFromRequest(request);
+      if (!user) return json(response, 401, { error: "Please sign in first." }, {}, request);
       const list = users();
       const current = list.find((item) => item.email === user.email);
       current.profile = {
@@ -261,13 +288,13 @@ async function handleAuth(request, response, pathname) {
         area: String(body.area || "").trim()
       };
       saveUsers(list);
-      return json(response, 200, { user: publicUser(current) });
+      return json(response, 200, { user: publicUser(current) }, {}, request);
     }
 
-    json(response, 404, { error: "Not found" });
+    json(response, 404, { error: "Not found" }, {}, request);
   } catch (error) {
     const status = error.status || 500;
-    json(response, status, { error: error.message || "Something went wrong." });
+    json(response, status, { error: error.message || "Something went wrong." }, {}, request);
   }
 }
 
@@ -287,14 +314,21 @@ function serveFile(request, response) {
   createReadStream(filePath).pipe(response);
 }
 
+const port = Number(process.env.PORT || 4173);
+
 createServer(async (request, response) => {
+  if (request.method === "OPTIONS") {
+    response.writeHead(204, corsHeaders(request));
+    response.end();
+    return;
+  }
   const pathname = request.url.split("?")[0];
   if (pathname.startsWith("/api/auth/")) {
     await handleAuth(request, response, pathname);
     return;
   }
   serveFile(request, response);
-}).listen(4173, () => {
-  console.log("Kalceto preview: http://localhost:4173");
+}).listen(port, "0.0.0.0", () => {
+  console.log(`Kalceto preview: http://localhost:${port}`);
   if (!mailer) console.log("Add GMAIL_USER and GMAIL_APP_PASSWORD in .env so login codes can be emailed.");
 });

@@ -2,7 +2,7 @@
 
 The public site is at [https://amerelezi2025.github.io/kalceto-shkoder/](https://amerelezi2025.github.io/kalceto-shkoder/).
 
-Email login (check account, then send a confirmation code) runs through the Kalceto Node server and Gmail. GitHub Pages can show the site, but it cannot send mail by itself.
+Login codes are sent by the hosted Kalceto server at [https://kalceto-shkoder.onrender.com](https://kalceto-shkoder.onrender.com). Share either link; GitHub Pages uses that server for sign-in.
 
 ## Run login locally
 

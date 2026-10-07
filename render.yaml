@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: kalceto-shkoder
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: FRONTEND_ORIGIN
+        value: https://amerelezi2025.github.io
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false

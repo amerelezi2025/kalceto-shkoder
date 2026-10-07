@@ -106,17 +106,26 @@ function updateAccountUi(user) {
   document.querySelectorAll(".profile-trigger").forEach((button) => { button.textContent = user ? "My profile" : button.closest(".hero-actions") ? "Create profile" : "Sign in"; });
 }
 
+function authHeaders(hasBody) {
+  const headers = {};
+  if (hasBody) headers["Content-Type"] = "application/json";
+  const token = localStorage.getItem("kalceto_session");
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
 async function authRequest(path, body) {
   const response = await fetch(`${authApiBase}/api/auth/${path}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    headers: authHeaders(body !== undefined),
     credentials: "include",
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   let data = {};
   try { data = await response.json(); } catch { data = {}; }
+  if (data.token) localStorage.setItem("kalceto_session", data.token);
   if (!response.ok) {
-    throw new Error(data.error || "Start the Kalceto server with npm start so it can check emails and send codes.");
+    throw new Error(data.error || "Sign-in is starting up. Wait a minute and try again.");
   }
   return data;
 }
@@ -156,9 +165,9 @@ document.querySelector("#email-form").addEventListener("submit", async (event) =
   try {
     await sendLoginCode(authIntent, "#auth-status");
   } catch (error) {
-    const offline = /Failed to fetch|NetworkError|404/i.test(error.message);
+    const offline = /Failed to fetch|NetworkError|Sign-in is starting/i.test(error.message);
     setAuthStatus("#auth-status", offline
-      ? "Start the Kalceto server with npm start so it can check emails and send codes."
+      ? "The login server is waking up. Wait 30 seconds and try Continue again."
       : error.message, true);
   } finally {
     buttons.forEach((button) => { button.disabled = false; });
@@ -211,6 +220,7 @@ document.querySelector("#profile-form").addEventListener("submit", async (event)
 
 document.querySelector(".sign-out").addEventListener("click", async () => {
   try { await authRequest("logout", {}); } catch { /* still clear the local view */ }
+  localStorage.removeItem("kalceto_session");
   updateAccountUi(null);
   dialog.close();
   showToast("You are signed out.");

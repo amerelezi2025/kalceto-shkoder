@@ -1,6 +1,6 @@
 // Leave apiBase empty to use this same website when it is started with `npm start`.
 window.KALCETO_AUTH = {
-  apiBase: ""
+  apiBase: location.hostname.endsWith("github.io") ? "https://kalceto-shkoder.onrender.com" : ""
 };
 
 // Optional social login later. Email codes are sent by the Kalceto server, not this key.
