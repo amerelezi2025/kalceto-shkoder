@@ -67,17 +67,18 @@ function normalizeAlbanianPhone(raw) {
     digits = "+355" + digits.slice(5);
   } else if (digits.startsWith("355") && !digits.startsWith("+355")) {
     digits = "+355" + digits.slice(3);
-  } else if (digits.startsWith("06") && digits.length === 10) {
+  }
+  // If someone entered +3550..., strip the erroneous 0
+  if (digits.startsWith("+3550")) {
+    digits = "+355" + digits.slice(5);
+  }
+  if (digits.startsWith("06")) {
     digits = "+355" + digits.slice(1);
-  } else if (digits.startsWith("6") && digits.length === 9) {
+  } else if (digits.startsWith("6") && (digits.length === 8 || digits.length === 9)) {
     digits = "+355" + digits;
   }
-  // Albanian mobile numbers: +355 6[6-9]XXXXXXX (8 digits after +355)
-  if (/^\+3556[6-9]\d{7}$/.test(digits)) {
-    return digits;
-  }
-  // Standard international numbers if entered
-  if (/^\+[1-9]\d{8,14}$/.test(digits)) {
+  // Albanian mobile numbers: +355 6[6-9]XXXXXXX (8 or 9 digits after +355)
+  if (/^\+3556[6-9]\d{6,7}$/.test(digits)) {
     return digits;
   }
   return null;
@@ -85,8 +86,11 @@ function normalizeAlbanianPhone(raw) {
 
 function formatAlbanianPhone(phone) {
   if (!phone) return "";
-  if (phone.startsWith("+355") && phone.length === 12) {
-    return `+355 ${phone.slice(4, 6)} ${phone.slice(6, 9)} ${phone.slice(9)}`;
+  if (phone.startsWith("+355")) {
+    const sub = phone.slice(4);
+    if (sub.length <= 8) {
+      return `+355 ${sub.slice(0, 2)} ${sub.slice(2, 5)} ${sub.slice(5)}`;
+    }
   }
   return phone;
 }
@@ -221,9 +225,9 @@ function tooManySends(entry) {
 
 async function sendSms(phone, code) {
   const formatted = formatAlbanianPhone(phone);
-  const text = `Kodi juaj i hyrjes në Kalceto Shkodër është: ${code}. Vlen për 10 minuta.`;
+  const text = `Kodi juaj i verifikimit per Kalceto Shkoder eshte: ${code}. Vlen per 10 minuta.`;
 
-  // Twilio integration if credentials exist in .env
+  // 1. Twilio SMS Integration
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM;
@@ -240,27 +244,64 @@ async function sendSms(phone, code) {
         },
         body: params.toString()
       });
-      if (res.ok) {
-        console.log(`[kalceto] SMS successfully dispatched to ${formatted}`);
-        return { sent: true, previewCode: code };
-      } else {
-        const errJson = await res.json().catch(() => ({}));
-        console.warn("[kalceto] Twilio SMS dispatch warning:", errJson);
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        console.error("[kalceto] Twilio error:", resData);
+        throw new Error(resData.message || "Twilio nuk mundi te dergoje SMS.");
       }
+      console.log(`[kalceto] SMS u dergua me sukses me Twilio te ${formatted}`);
+      return { sent: true };
     } catch (err) {
-      console.warn("[kalceto] Twilio SMS exception:", err.message);
+      console.error("[kalceto] Twilio exception:", err.message);
+      throw new Error(`Dërgimi i SMS dështoi: ${err.message}`);
     }
   }
 
-  // Console output for local testing & real-time monitoring
+  // 2. Infobip SMS Integration
+  const infobipKey = process.env.INFOBIP_API_KEY;
+  const infobipBase = process.env.INFOBIP_BASE_URL;
+  const infobipFrom = process.env.INFOBIP_SENDER || "Kalceto";
+
+  if (infobipKey && infobipBase) {
+    try {
+      const cleanBase = infobipBase.replace(/\/+$/, "");
+      const res = await fetch(`${cleanBase}/sms/2/text/advanced`, {
+        method: "POST",
+        headers: {
+          "Authorization": `App ${infobipKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          messages: [{
+            from: infobipFrom,
+            destinations: [{ to: phone }],
+            text
+          }]
+        })
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.requestError?.serviceException?.text || "Infobip SMS dështoi.");
+      }
+      console.log(`[kalceto] SMS u dërgua me Infobip te ${formatted}`);
+      return { sent: true };
+    } catch (err) {
+      throw new Error(`Dërgimi i SMS dështoi: ${err.message}`);
+    }
+  }
+
+  // If no SMS provider is configured, do not pretend to succeed
   console.log(`\n=================================================`);
-  console.log(`💬 [KALCETO SMS VERIFICATION CODE]`);
-  console.log(`Për numrin: ${formatted} (${phone})`);
-  console.log(`Kodi SMS:   ${code}`);
-  console.log(`Mesazhi:    "${text}"`);
+  console.log(`⚠️ [KALCETO SMS - OPERATORI NUK ESHTE I KONFIGURUAR]`);
+  console.log(`Numri: ${formatted} (${phone})`);
+  console.log(`Kodi i gjeneruar në server: ${code}`);
+  console.log(`Per te derguar SMS reale ne telefon:`);
+  console.log(`Shtoni TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER ne .env ose Render.`);
   console.log(`=================================================\n`);
 
-  return { sent: true, previewCode: code };
+  const error = new Error("Shërbimi SMS nuk është i konfiguruar në server. Për të marrë SMS në celular, shtoni kredencialet e Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER) në skedarin .env ose në Render.");
+  error.status = 503;
+  throw error;
 }
 
 async function sendCodeEmail(email, code, intent) {
@@ -357,14 +398,12 @@ async function handleAuth(request, response, pathname) {
       if (intent === "signin_only" && !user?.verified) {
         return json(response, 404, { error: "Nuk ekziston llogari me këtë numër. Regjistrohuni fillimisht." }, {}, request);
       }
-      const result = await issueCode(identifier, intent, isPhoneReq);
+      await issueCode(identifier, intent, isPhoneReq);
       return json(response, 200, {
         sent: true,
         identifier,
         phone: isPhoneReq ? identifier : null,
-        formattedPhone: isPhoneReq ? formatAlbanianPhone(identifier) : null,
-        email: !isPhoneReq ? identifier : null,
-        previewCode: result?.previewCode || null
+        formattedPhone: isPhoneReq ? formatAlbanianPhone(identifier) : null
       }, {}, request);
     }
 

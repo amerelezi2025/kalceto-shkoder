@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=3.1" />
+    <link rel="stylesheet" href="styles.css?v=3.2" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -176,15 +176,6 @@
 
     <footer class="site-footer"><div class="shell footer-grid"><a class="brand" href="#home"><span class="brand-mark"><i></i><i></i><i></i></span><span>KALCETO<small>SHKODER</small></span></a><p>Find the people. Find the pitch. Play.</p><a href="mailto:hello@kalceto.al">hello@kalceto.al</a><small>School project concept · Shkoder, Albania</small></div></footer>
 
-    <!-- Push SMS Notification Simulator for Instant Verification Testing -->
-    <div id="sms-sim-banner" class="sms-banner" hidden>
-      <div class="sms-banner-badge">💬 SMS · KALCETO</div>
-      <div class="sms-banner-body">
-        <span class="sms-banner-title">Kodi i Verifikimit me SMS</span>
-        <p class="sms-banner-msg">Kodi juaj për hyrje në Kalceto: <strong id="sms-sim-code">------</strong>. Vlen për 10 minuta.</p>
-      </div>
-      <button type="button" id="sms-autofill-btn" class="sms-banner-btn">Plotëso Kodin ⚡</button>
-    </div>
 
     <dialog id="account-dialog" class="dialog">
       <button class="dialog-close" type="button" aria-label="Mbyll dritaren">×</button>
@@ -202,14 +193,13 @@
             <div class="phone-input-wrap">
               <span class="country-prefix">
                 <span class="country-flag">🇦🇱</span>
-                <span class="country-code">+355</span>
               </span>
-              <input id="auth-phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="069 123 4567" />
+              <input id="auth-phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="069 123 4567 ose +355 69 123 4567" />
             </div>
           </label>
           <div class="phone-tips">
-            <span class="tip-pill">Vodafone · ONE</span>
-            <span class="tip-text">Format: 067, 068, 069, 066</span>
+            <span class="tip-pill">FORMATET</span>
+            <span class="tip-text">06x xxx xxxx ose +355 6x xxx xxxx</span>
           </div>
           <button class="button button-accent button-wide" type="submit" id="phone-submit-btn">
             Dërgo Kodin me SMS <span aria-hidden="true">→</span>
@@ -323,6 +313,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="app.js?v=3.1"></script>
+    <script src="app.js?v=3.2"></script>
   </body>
 </html>

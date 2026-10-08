@@ -87,48 +87,89 @@ document.querySelector("#match-button").addEventListener("click", () => {
 
 const dialog = document.querySelector("#account-dialog");
 const authApiBase = window.KALCETO_AUTH?.apiBase ?? "";
-const smsBanner = document.querySelector("#sms-sim-banner");
-const smsCodeEl = document.querySelector("#sms-sim-code");
-const smsAutofillBtn = document.querySelector("#sms-autofill-btn");
-
 let signedInUser = null;
 let currentIdentifier = "";
 let currentFormattedIdentifier = "";
-let isPhoneAuth = true;
-let currentPreviewCode = "";
 let countdownTimerInterval = null;
 
 // Normalization & Formatting Helpers
 function normalizeAlbanianPhone(raw) {
   if (!raw) return null;
-  let digits = String(raw).trim().replace(/[\s\-\(\)\.]/g, "");
-  if (digits.startsWith("00355")) digits = "+355" + digits.slice(5);
-  else if (digits.startsWith("355") && !digits.startsWith("+355")) digits = "+355" + digits.slice(3);
-  else if (digits.startsWith("06") && digits.length === 10) digits = "+355" + digits.slice(1);
-  else if (digits.startsWith("6") && digits.length === 9) digits = "+355" + digits;
-  if (/^\+3556[6-9]\d{7}$/.test(digits)) return digits;
-  if (/^\+[1-9]\d{8,14}$/.test(digits)) return digits;
+  let cleaned = String(raw).trim().replace(/[\s\-\(\)\.]/g, "");
+
+  if (cleaned.startsWith("00355")) {
+    cleaned = "+355" + cleaned.slice(5);
+  } else if (cleaned.startsWith("355") && !cleaned.startsWith("+355")) {
+    cleaned = "+355" + cleaned.slice(3);
+  }
+
+  // Strip 0 if someone entered +3550...
+  if (cleaned.startsWith("+3550")) {
+    cleaned = "+355" + cleaned.slice(5);
+  }
+
+  // Domestic format: 06[6-9]XXXXXXX
+  if (/^06[6-9]\d{6,7}$/.test(cleaned)) {
+    return "+355" + cleaned.slice(1);
+  }
+
+  // International format: +355 6[6-9]XXXXXXX
+  if (/^\+3556[6-9]\d{6,7}$/.test(cleaned)) {
+    return cleaned;
+  }
+
+  // Raw: 6[6-9]XXXXXXX
+  if (/^6[6-9]\d{6,7}$/.test(cleaned)) {
+    return "+355" + cleaned;
+  }
+
   return null;
 }
 
-function formatAlbanianPhone(phone) {
+function formatAlbanianPhoneDisplay(phone) {
   if (!phone) return "";
-  const cleaned = phone.replace(/[^\d+]/g, "");
-  if (cleaned.startsWith("+355") && cleaned.length === 12) {
-    return `+355 ${cleaned.slice(4, 6)} ${cleaned.slice(6, 9)} ${cleaned.slice(9)}`;
+  let p = phone.trim();
+  if (p.startsWith("+355")) {
+    let sub = p.slice(4);
+    if (sub.length <= 8) {
+      return `+355 ${sub.slice(0, 2)} ${sub.slice(2, 5)} ${sub.slice(5)}`;
+    }
   }
-  return phone;
+  return p;
 }
 
 function formatPhoneInput(value) {
-  let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("355")) digits = digits.slice(3);
-  if (digits.length === 0) return "";
-  if (!digits.startsWith("0") && digits.length > 0) digits = "0" + digits;
-  digits = digits.slice(0, 10);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-  return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  let val = value.trim();
+  if (val.startsWith("+")) {
+    let digits = val.replace(/[^\d]/g, "");
+    if (!digits.startsWith("355") && digits.length >= 1) {
+      digits = "355" + digits;
+    }
+    let rest = digits.slice(3);
+    // If user writes 0 after +355, remove 0 immediately so it never starts with 0
+    if (rest.startsWith("0")) {
+      rest = rest.slice(1);
+    }
+    rest = rest.slice(0, 9);
+    if (!rest) return "+355 ";
+    if (rest.length <= 2) return `+355 ${rest}`;
+    if (rest.length <= 5) return `+355 ${rest.slice(0, 2)} ${rest.slice(2)}`;
+    return `+355 ${rest.slice(0, 2)} ${rest.slice(2, 5)} ${rest.slice(5)}`;
+  } else {
+    let digits = val.replace(/\D/g, "");
+    if (digits.startsWith("355")) {
+      let rest = digits.slice(3);
+      if (rest.startsWith("0")) rest = rest.slice(1);
+      rest = rest.slice(0, 9);
+      if (rest.length <= 2) return `+355 ${rest}`;
+      if (rest.length <= 5) return `+355 ${rest.slice(0, 2)} ${rest.slice(2)}`;
+      return `+355 ${rest.slice(0, 2)} ${rest.slice(2, 5)} ${rest.slice(5)}`;
+    }
+    digits = digits.slice(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
 }
 
 // Live formatting on Phone Input
@@ -168,7 +209,7 @@ function authHeaders(hasBody) {
 
 async function authRequest(path, body) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6500);
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(`${authApiBase}/api/auth/${path}`, {
       method: body === undefined ? "GET" : "POST",
@@ -182,37 +223,16 @@ async function authRequest(path, body) {
     try { data = await response.json(); } catch { data = {}; }
     if (data.token) localStorage.setItem("kalceto_session", data.token);
     if (!response.ok) {
-      throw new Error(data.error || "Ndodhi një gabim gjatë komunikimit.");
+      throw new Error(data.error || "Ndodhi një gabim gjatë komunikimit me serverin.");
     }
     return data;
   } catch (error) {
     clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      throw new Error("Serveri vonoi të përgjigjej. Ju lutem provoni përsëri.");
+    }
     throw error;
   }
-}
-
-// Simulated SMS Banner Pop-up
-function showSmsNotification(code, targetPhone) {
-  currentPreviewCode = code;
-  if (smsCodeEl) smsCodeEl.textContent = code;
-  if (smsBanner) {
-    smsBanner.hidden = false;
-    clearTimeout(window._smsBannerTimer);
-    window._smsBannerTimer = setTimeout(() => {
-      smsBanner.hidden = true;
-    }, 28000);
-  }
-}
-
-if (smsAutofillBtn) {
-  smsAutofillBtn.addEventListener("click", () => {
-    if (currentPreviewCode) {
-      setEnteredOtp(currentPreviewCode);
-      showToast("Kodi u plotësua automatikisht nga SMS! ⚡");
-      if (smsBanner) smsBanner.hidden = true;
-      document.querySelector("#code-form").requestSubmit();
-    }
-  });
 }
 
 // 6-Digit OTP Box Management
@@ -284,7 +304,7 @@ otpDigits.forEach((input, index) => {
 });
 
 // Countdown Timer for SMS Code Resend
-function startResendCountdown(seconds = 45) {
+function startResendCountdown(seconds = 60) {
   clearInterval(countdownTimerInterval);
   const countdownWrap = document.querySelector("#countdown-wrap");
   const countdownTimer = document.querySelector("#countdown-timer");
@@ -308,61 +328,20 @@ function startResendCountdown(seconds = 45) {
   }, 1000);
 }
 
-// Send OTP with offline/sleep resilience
-async function requestOtp(identifier, isPhone) {
-  try {
-    const data = await authRequest("send-code", {
-      phone: isPhone ? identifier : undefined,
-      email: !isPhone ? identifier : undefined,
-      intent: "signin"
-    });
-    return data;
-  } catch (err) {
-    // Client-side fallback if server is waking up or offline
-    const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-    sessionStorage.setItem("kalceto_fallback_otp_" + identifier, fallbackCode);
-    return {
-      sent: true,
-      identifier,
-      phone: isPhone ? identifier : null,
-      formattedPhone: isPhone ? formatAlbanianPhone(identifier) : null,
-      previewCode: fallbackCode,
-      isFallback: true
-    };
-  }
+// Request real carrier SMS from server
+async function requestOtp(phone) {
+  return await authRequest("send-code", {
+    phone,
+    intent: "signin"
+  });
 }
 
-// Verify OTP with offline/sleep resilience
-async function verifyOtp(identifier, code, isPhone) {
-  try {
-    const data = await authRequest("verify", {
-      phone: isPhone ? identifier : undefined,
-      email: !isPhone ? identifier : undefined,
-      code
-    });
-    return data;
-  } catch (err) {
-    const fallback = sessionStorage.getItem("kalceto_fallback_otp_" + identifier);
-    if (fallback && fallback === code) {
-      sessionStorage.removeItem("kalceto_fallback_otp_" + identifier);
-      const user = {
-        id: "usr_" + Math.random().toString(36).slice(2, 9),
-        phone: isPhone ? identifier : null,
-        formattedPhone: isPhone ? formatAlbanianPhone(identifier) : null,
-        email: !isPhone ? identifier : null,
-        profile: {
-          displayName: "",
-          position: "Mesfushë",
-          area: "Parrucë",
-          level: "Regular"
-        }
-      };
-      const token = "mock_session_" + Date.now();
-      localStorage.setItem("kalceto_session", token);
-      return { user, token, isNewUser: true };
-    }
-    throw err;
-  }
+// Verify SMS OTP on server
+async function verifyOtp(phone, code) {
+  return await authRequest("verify", {
+    phone,
+    code
+  });
 }
 
 function fillProfileForm(user) {
@@ -440,34 +419,29 @@ document.querySelector("#phone-form")?.addEventListener("submit", async (event) 
   const normalized = normalizeAlbanianPhone(raw);
 
   if (!normalized) {
-    setAuthStatus("#phone-status", "Vendosni një numër të saktë celular në Shqipëri (p.sh. 069 123 4567 ose 068, 067, 066).", true);
+    setAuthStatus("#phone-status", "Vendosni një numër të saktë celular: 06x xxx xxxx ose +355 6x xxx xxxx (pa 0 pas +355).", true);
     return;
   }
 
   currentIdentifier = normalized;
-  currentFormattedIdentifier = formatAlbanianPhone(normalized);
-  isPhoneAuth = true;
+  currentFormattedIdentifier = formatAlbanianPhoneDisplay(normalized);
 
   const btn = document.querySelector("#phone-submit-btn");
   if (btn) btn.disabled = true;
-  setAuthStatus("#phone-status", "Duke dërguar kodin me SMS...");
+  setAuthStatus("#phone-status", "Duke dërguar kodin me SMS në celular...");
 
   try {
-    const res = await requestOtp(normalized, true);
+    await requestOtp(normalized);
     document.querySelector("#code-target").textContent = currentFormattedIdentifier;
     clearOtpInputs();
     setAuthView("code");
-    startResendCountdown(45);
-    setAuthStatus("#code-status", `Kodi u dërgua me SMS te ${currentFormattedIdentifier}.`);
-
-    if (res.previewCode) {
-      showSmsNotification(res.previewCode, currentFormattedIdentifier);
-    }
+    startResendCountdown(60);
+    setAuthStatus("#code-status", `Kodi 6-shifror u dërgua me SMS në celularin tuaj (${currentFormattedIdentifier}).`);
     setTimeout(() => {
       otpDigits[0]?.focus();
     }, 100);
   } catch (error) {
-    setAuthStatus("#phone-status", error.message || "Ndodhi një problem. Provoni përsëri.", true);
+    setAuthStatus("#phone-status", error.message || "Ndodhi një problem me dërgimin e SMS.", true);
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -476,7 +450,6 @@ document.querySelector("#phone-form")?.addEventListener("submit", async (event) 
 // Change Target (back to phone entry)
 document.querySelector("#change-target")?.addEventListener("click", () => {
   setAuthView("phone");
-  if (smsBanner) smsBanner.hidden = true;
 });
 
 // Code Verification Form Submit
@@ -484,7 +457,7 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
   event.preventDefault();
   const code = getEnteredOtp() || document.querySelector("#auth-code").value.trim();
   if (code.length !== 6) {
-    setAuthStatus("#code-status", "Ju lutem plotësoni të gjitha 6 shifrat e kodit.", true);
+    setAuthStatus("#code-status", "Ju lutem plotësoni të gjitha 6 shifrat e kodit nga SMS.", true);
     return;
   }
 
@@ -493,9 +466,8 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
   setAuthStatus("#code-status", "Duke verifikuar kodin...");
 
   try {
-    const data = await verifyOtp(currentIdentifier, code, true);
+    const data = await verifyOtp(currentIdentifier, code);
     updateAccountUi(data.user);
-    if (smsBanner) smsBanner.hidden = true;
 
     if (data.user.profile?.displayName) {
       setAuthView("account-view");
@@ -505,7 +477,7 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
       setAuthStatus("#profile-status", "Numri u verifikua me sukses! Plotësoni profilin tuaj.");
     }
   } catch (error) {
-    setAuthStatus("#code-status", error.message || "Kodi nuk është i saktë.", true);
+    setAuthStatus("#code-status", error.message || "Kodi i verifikimit nuk është i saktë.", true);
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -513,15 +485,12 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
 
 // Resend Code Action
 document.querySelector("#resend-code")?.addEventListener("click", async () => {
-  setAuthStatus("#code-status", "Duke ridërguar kodin...");
+  setAuthStatus("#code-status", "Duke ridërguar kodin me SMS...");
   try {
-    const res = await requestOtp(currentIdentifier, true);
+    await requestOtp(currentIdentifier);
     clearOtpInputs();
-    startResendCountdown(45);
-    setAuthStatus("#code-status", `Një kod i ri u dërgua te ${currentFormattedIdentifier}.`);
-    if (res.previewCode) {
-      showSmsNotification(res.previewCode, currentFormattedIdentifier);
-    }
+    startResendCountdown(60);
+    setAuthStatus("#code-status", `Një kod i ri u dërgua me SMS te ${currentFormattedIdentifier}.`);
   } catch (error) {
     setAuthStatus("#code-status", error.message, true);
   }
