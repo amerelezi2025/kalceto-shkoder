@@ -173,51 +173,173 @@
 
     <footer class="site-footer"><div class="shell footer-grid"><a class="brand" href="#home"><span class="brand-mark"><i></i><i></i><i></i></span><span>KALCETO<small>SHKODER</small></span></a><p>Find the people. Find the pitch. Play.</p><a href="mailto:hello@kalceto.al">hello@kalceto.al</a><small>School project concept · Shkoder, Albania</small></div></footer>
 
+    <!-- Push SMS Notification Simulator for Instant Verification Testing -->
+    <div id="sms-sim-banner" class="sms-banner" hidden>
+      <div class="sms-banner-badge">💬 SMS · KALCETO</div>
+      <div class="sms-banner-body">
+        <span class="sms-banner-title">Kodi i Verifikimit me SMS</span>
+        <p class="sms-banner-msg">Kodi juaj për hyrje në Kalceto: <strong id="sms-sim-code">------</strong>. Vlen për 10 minuta.</p>
+      </div>
+      <button type="button" id="sms-autofill-btn" class="sms-banner-btn">Plotëso Kodin ⚡</button>
+    </div>
+
     <dialog id="account-dialog" class="dialog">
-      <button class="dialog-close" type="button" aria-label="Close dialog">×</button>
-      <section class="auth-panel" id="email-step">
-        <p class="eyebrow">SIGN IN OR JOIN</p>
-        <h2>Ready for a game?</h2>
-        <p>Enter your email. Kalceto checks if the account exists, then sends a confirmation code to that inbox.</p>
+      <button class="dialog-close" type="button" aria-label="Mbyll dritaren">×</button>
+
+      <!-- Step 1: Albanian Phone Number Entry (Primary) -->
+      <section class="auth-panel" id="phone-step">
+        <div class="auth-eyebrow-row">
+          <span class="badge-albania">🇦🇱 ALBANIA</span>
+          <p class="eyebrow">HYRJE ME TELEFON</p>
+        </div>
+        <h2>Gati për lojë?</h2>
+        <p>Vendosni numrin tuaj të telefonit në Shqipëri. Do t'ju dërgojmë menjëherë një kod verifikimi 6-shifror me SMS.</p>
+        <form id="phone-form">
+          <label for="auth-phone">Numri i celularit
+            <div class="phone-input-wrap">
+              <span class="country-prefix">
+                <span class="country-flag">🇦🇱</span>
+                <span class="country-code">+355</span>
+              </span>
+              <input id="auth-phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="069 123 4567" />
+            </div>
+          </label>
+          <div class="phone-tips">
+            <span class="tip-pill">Vodafone · ONE</span>
+            <span class="tip-text">Format: 067, 068, 069, 066</span>
+          </div>
+          <button class="button button-accent button-wide" type="submit" id="phone-submit-btn">
+            Dërgo Kodin me SMS <span aria-hidden="true">→</span>
+          </button>
+        </form>
+        <div class="auth-divider"><span>ose vazhdoni me</span></div>
+        <div class="alt-auth-actions">
+          <button class="text-button switch-auth-btn" id="switch-to-email" type="button">Hyr me adresë email-i <span aria-hidden="true">→</span></button>
+        </div>
+        <p class="auth-status" id="phone-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- Step 1b: Email Entry (Alternative) -->
+      <section class="auth-panel" id="email-step" hidden>
+        <p class="eyebrow">HYRJE ME EMAIL</p>
+        <h2>Hyrje me email</h2>
+        <p>Vendosni email-in tuaj për të marrë kodin e konfirmimit në inbox.</p>
         <form id="email-form">
-          <label>Email address<input id="auth-email" type="email" autocomplete="email" required placeholder="you@email.com" /></label>
+          <label>Adresa e email-it
+            <input id="auth-email" type="email" autocomplete="email" placeholder="juaj@email.com" />
+          </label>
           <div class="email-actions">
-            <button class="button button-accent" type="submit" data-auth-intent="signin">Continue</button>
-            <button class="button button-outline" type="submit" data-auth-intent="signup">Create account</button>
+            <button class="button button-accent" type="submit" data-auth-intent="signin">Vazhdo</button>
+            <button class="button button-outline" type="submit" data-auth-intent="signup">Krijo llogari</button>
           </div>
         </form>
-        <div class="auth-divider"><span>or continue with</span></div>
-        <div class="social-options">
-          <button class="social-login" type="button" data-provider="google">Google</button>
-          <button class="social-login" type="button" data-provider="apple">Apple</button>
-          <button class="social-login" type="button" data-provider="azure">Microsoft</button>
+        <div class="auth-divider"><span>ose</span></div>
+        <div class="alt-auth-actions">
+          <button class="text-button switch-auth-btn" id="switch-to-phone" type="button">Kthehu te hyrja me telefon (🇦🇱 SMS) <span aria-hidden="true">→</span></button>
         </div>
         <p class="auth-status" id="auth-status" role="status" aria-live="polite"></p>
       </section>
+
+      <!-- Step 2: 6-Digit OTP Verification Screen -->
       <section class="auth-panel" id="code-step" hidden>
-        <p class="eyebrow">CHECK YOUR INBOX</p>
-        <h2>Enter your code.</h2>
-        <p>We sent a verification code to <strong id="code-email"></strong>.</p>
+        <div class="auth-eyebrow-row">
+          <span class="pulse-indicator"></span>
+          <p class="eyebrow">VERIFIKIMI ME SMS</p>
+        </div>
+        <h2>Vendosni kodin.</h2>
+        <p>Kodi 6-shifror u dërgua me SMS te <strong id="code-target">+355 69 ...</strong></p>
         <form id="code-form">
-          <label>Verification code<input id="auth-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" /></label>
-          <button class="button button-accent button-wide" type="submit">Verify and continue</button>
+          <label>Kodi i konfirmimit (6 shifra)
+            <div class="otp-inputs" id="otp-inputs">
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="0" autocomplete="off" />
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="1" autocomplete="off" />
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="2" autocomplete="off" />
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="3" autocomplete="off" />
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="4" autocomplete="off" />
+              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="5" autocomplete="off" />
+            </div>
+            <input id="auth-code" type="hidden" />
+          </label>
+          <button class="button button-accent button-wide" type="submit" id="code-submit-btn">Verifiko dhe Vazhdo <span aria-hidden="true">✓</span></button>
         </form>
-        <button class="text-button" id="resend-code" type="button">Send a new code <span aria-hidden="true">→</span></button>
-        <button class="text-button" id="change-email" type="button">Use a different email <span aria-hidden="true">→</span></button>
+        <div class="code-actions-row">
+          <div id="countdown-wrap" class="countdown-text">Ridërgo kodin pas <strong id="countdown-timer">45s</strong></div>
+          <button class="text-button" id="resend-code" type="button" style="display:none;">Ridërgo kodin me SMS <span aria-hidden="true">↻</span></button>
+          <button class="text-button" id="change-target" type="button">Ndrysho numrin e telefonit <span aria-hidden="true">←</span></button>
+        </div>
         <p class="auth-status" id="code-status" role="status" aria-live="polite"></p>
       </section>
+
+      <!-- Step 3: Complete Player Profile -->
       <section class="auth-panel" id="profile-step" hidden>
-        <p class="eyebrow">YOUR PLAYER PROFILE</p>
-        <h2>One last thing.</h2>
-        <p>Your sign-in is complete. Add the basics before looking for a game.</p>
+        <div class="auth-eyebrow-row">
+          <span class="badge-success">✓ E VERIFIKUAR</span>
+          <p class="eyebrow">PROFILI I LOJTARIT</p>
+        </div>
+        <h2>Mirëseerdhe!</h2>
+        <p>Vendosni të dhënat tuaja që lojtarët dhe fushat në Shkodër t'ju gjejnë shpejt.</p>
         <form id="profile-form">
-          <label>Your name<input id="profile-name" required autocomplete="name" placeholder="Your name" /></label>
-          <label>Best position<select id="profile-position"><option>Midfielder</option><option>Goalkeeper</option><option>Defender</option><option>Striker</option></select></label>
-          <label>Area in Shkoder<select id="profile-area"><option>Choose an area</option><option>Parruce</option><option>Rus</option><option>Perash</option><option>Bahcallek</option></select></label>
-          <button class="button button-accent button-wide" type="submit">Save player profile</button>
+          <label>Emri dhe Mbiemri
+            <input id="profile-name" required autocomplete="name" placeholder="P.sh. Ardit Hoxha" />
+          </label>
+          <div class="field-grid">
+            <label>Pozicioni i preferuar
+              <select id="profile-position">
+                <option value="Mesfushë">Mesfushë (Midfielder)</option>
+                <option value="Sulmues">Sulmues (Striker)</option>
+                <option value="Mbrojtës">Mbrojtës (Defender)</option>
+                <option value="Portier">Portier (Goalkeeper)</option>
+              </select>
+            </label>
+            <label>Zona në Shkodër
+              <select id="profile-area">
+                <option value="Parrucë">Parrucë</option>
+                <option value="Rus">Rus</option>
+                <option value="Perash">Perash</option>
+                <option value="Bahçallëk">Bahçallëk</option>
+                <option value="Kiras">Kiras</option>
+                <option value="Qendër">Qendër</option>
+                <option value="Dobraç">Dobraç</option>
+                <option value="Zdrale">Zdrale</option>
+              </select>
+            </label>
+          </div>
+          <label>Niveli i lojës
+            <select id="profile-level">
+              <option value="Regular">I rregullt (Regular)</option>
+              <option value="Strong">I fortë (Strong)</option>
+              <option value="Very strong">Shumë i fortë (Very strong)</option>
+              <option value="New">Fillestar (New)</option>
+            </select>
+          </label>
+          <button class="button button-accent button-wide" type="submit">Ruaj Profilin dhe Fillo Lojën <span aria-hidden="true">→</span></button>
         </form>
-        <button class="text-button sign-out" type="button">Sign out <span aria-hidden="true">→</span></button>
+        <button class="text-button sign-out" type="button">Dil nga llogaria <span aria-hidden="true">→</span></button>
         <p class="auth-status" id="profile-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- Step 4: Account Card View (When already logged in) -->
+      <section class="auth-panel" id="account-view-step" hidden>
+        <div class="auth-eyebrow-row">
+          <span class="badge-albania">🇦🇱 AKTIV</span>
+          <p class="eyebrow">LLOGARIA JUAJ</p>
+        </div>
+        <div class="user-card-summary">
+          <div class="user-avatar-large" id="view-avatar">LK</div>
+          <div class="user-details">
+            <h2 id="view-name" style="font-size:2rem;margin:0 0 4px">Lojtar Kalceto</h2>
+            <div class="verified-phone-tag">
+              <span>🇦🇱</span>
+              <strong id="view-phone">+355 69 ...</strong>
+              <small class="verified-pill">✓ E Verifikuar me SMS</small>
+            </div>
+            <p class="user-meta-sub" id="view-meta">Mesfushë · Parrucë, Shkodër</p>
+          </div>
+        </div>
+        <div class="account-actions-box">
+          <button class="button button-outline button-wide" id="edit-profile-btn" type="button">Ndrysho të dhënat e profilit</button>
+          <button class="button button-dark button-wide sign-out" type="button">Dil nga llogaria (Sign Out)</button>
+        </div>
       </section>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

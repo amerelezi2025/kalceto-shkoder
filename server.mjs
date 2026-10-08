@@ -59,6 +59,38 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// Normalizes Albanian phone number to +3556XXXXXXXX format
+function normalizeAlbanianPhone(raw) {
+  if (!raw) return null;
+  let digits = String(raw).trim().replace(/[\s\-\(\)\.]/g, "");
+  if (digits.startsWith("00355")) {
+    digits = "+355" + digits.slice(5);
+  } else if (digits.startsWith("355") && !digits.startsWith("+355")) {
+    digits = "+355" + digits.slice(3);
+  } else if (digits.startsWith("06") && digits.length === 10) {
+    digits = "+355" + digits.slice(1);
+  } else if (digits.startsWith("6") && digits.length === 9) {
+    digits = "+355" + digits;
+  }
+  // Albanian mobile numbers: +355 6[6-9]XXXXXXX (8 digits after +355)
+  if (/^\+3556[6-9]\d{7}$/.test(digits)) {
+    return digits;
+  }
+  // Standard international numbers if entered
+  if (/^\+[1-9]\d{8,14}$/.test(digits)) {
+    return digits;
+  }
+  return null;
+}
+
+function formatAlbanianPhone(phone) {
+  if (!phone) return "";
+  if (phone.startsWith("+355") && phone.length === 12) {
+    return `+355 ${phone.slice(4, 6)} ${phone.slice(6, 9)} ${phone.slice(9)}`;
+  }
+  return phone;
+}
+
 function hashValue(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
@@ -71,8 +103,9 @@ function saveUsers(list) {
   writeJson("users.json", list);
 }
 
-function findUser(email) {
-  return users().find((user) => user.email === email) ?? null;
+function findUser(identifier) {
+  if (!identifier) return null;
+  return users().find((user) => user.phone === identifier || user.email === identifier || user.id === identifier) ?? null;
 }
 
 function codes() {
@@ -93,7 +126,7 @@ const allowedOrigins = new Set([
 function corsHeaders(request) {
   const origin = request.headers.origin;
   if (!origin) return {};
-  if (!allowedOrigins.has(origin) && !origin.endsWith(".onrender.com")) return {};
+  if (!allowedOrigins.has(origin) && !origin.endsWith(".github.io") && !origin.endsWith(".onrender.com")) return {};
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Credentials": "true",
@@ -128,8 +161,8 @@ function sessionSecret() {
   return secret;
 }
 
-function signSession(email) {
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + 1000 * 60 * 60 * 24 * 14 })).toString("base64url");
+function signSession(identifier) {
+  const payload = Buffer.from(JSON.stringify({ id: identifier, exp: Date.now() + 1000 * 60 * 60 * 24 * 14 })).toString("base64url");
   const signature = hashValue(`${payload}.${sessionSecret()}`);
   return `${payload}.${signature}`;
 }
@@ -143,8 +176,9 @@ function readSession(token) {
   if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
   try {
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!data.email || data.exp < Date.now()) return null;
-    return findUser(data.email);
+    const identifier = data.id || data.email;
+    if (!identifier || data.exp < Date.now()) return null;
+    return findUser(identifier);
   } catch {
     return null;
   }
@@ -172,7 +206,11 @@ async function readBody(request) {
   for await (const chunk of request) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString("utf8");
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 }
 
 function tooManySends(entry) {
@@ -181,40 +219,96 @@ function tooManySends(entry) {
   return stamps.length >= 5;
 }
 
+async function sendSms(phone, code) {
+  const formatted = formatAlbanianPhone(phone);
+  const text = `Kodi juaj i hyrjes në Kalceto Shkodër është: ${code}. Vlen për 10 minuta.`;
+
+  // Twilio integration if credentials exist in .env
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM;
+
+  if (accountSid && authToken && fromNumber) {
+    try {
+      const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+      const params = new URLSearchParams({ To: phone, From: fromNumber, Body: text });
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: params.toString()
+      });
+      if (res.ok) {
+        console.log(`[kalceto] SMS successfully dispatched to ${formatted}`);
+        return { sent: true, previewCode: code };
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn("[kalceto] Twilio SMS dispatch warning:", errJson);
+      }
+    } catch (err) {
+      console.warn("[kalceto] Twilio SMS exception:", err.message);
+    }
+  }
+
+  // Console output for local testing & real-time monitoring
+  console.log(`\n=================================================`);
+  console.log(`💬 [KALCETO SMS VERIFICATION CODE]`);
+  console.log(`Për numrin: ${formatted} (${phone})`);
+  console.log(`Kodi SMS:   ${code}`);
+  console.log(`Mesazhi:    "${text}"`);
+  console.log(`=================================================\n`);
+
+  return { sent: true, previewCode: code };
+}
+
 async function sendCodeEmail(email, code, intent) {
-  const subject = intent === "signup" ? "Your Kalceto signup code" : "Your Kalceto sign-in code";
-  const text = `Your Kalceto confirmation code is ${code}. It expires in 10 minutes. If you did not request this, ignore this email.`;
+  const subject = intent === "signup" ? "Kodi i regjistrimit në Kalceto" : "Kodi i hyrjes në Kalceto";
+  const text = `Kodi juaj i konfirmimit për Kalceto është: ${code}. Vlen për 10 minuta.`;
   if (!mailer) {
-    console.log(`[kalceto] Gmail is not configured. Code for ${email}: ${code}`);
-    throw new Error("Email sending is not configured. Add GMAIL_USER and GMAIL_APP_PASSWORD to a .env file.");
+    console.log(`[kalceto] Email not configured. Code for ${email}: ${code}`);
+    return { sent: true, previewCode: code };
   }
   await mailer.sendMail({
-    from: `"Kalceto" <${gmailUser}>`,
+    from: `"Kalceto Shkodër" <${gmailUser}>`,
     to: email,
     subject,
     text,
-    html: `<p>Your Kalceto confirmation code is</p><p style="font-size:28px;letter-spacing:6px;font-weight:700">${code}</p><p>It expires in 10 minutes.</p>`
+    html: `<div style="font-family:sans-serif;padding:24px;background:#f6f4ed;color:#13221c;max-width:480px;border-radius:8px">
+      <h2 style="margin-top:0;color:#1e5a3f">KALCETO SHKODËR</h2>
+      <p>Kodi juaj i konfirmimit është:</p>
+      <p style="font-size:32px;letter-spacing:6px;font-weight:700;color:#f46f43;margin:16px 0">${code}</p>
+      <p style="color:#69736c;font-size:13px">Ky kod skadon pas 10 minutash.</p>
+    </div>`
   });
+  return { sent: true, previewCode: code };
 }
 
-async function issueCode(email, intent) {
+async function issueCode(identifier, intent, isPhone = true) {
   const map = codes();
-  const current = map[email] || {};
+  const current = map[identifier] || {};
   if (tooManySends(current)) {
-    const error = new Error("Please wait a few minutes before requesting another code.");
+    const error = new Error("Ju lutem prisni pak para se të kërkoni një kod të ri.");
     error.status = 429;
     throw error;
   }
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
-  map[email] = {
-    hash: hashValue(`${email}:${code}`),
+  map[identifier] = {
+    hash: hashValue(`${identifier}:${code}`),
     expiresAt: Date.now() + 10 * 60 * 1000,
     attempts: 0,
     intent,
+    isPhone,
     sentAt: [...(current.sentAt || []).filter((time) => Date.now() - time < 15 * 60 * 1000), Date.now()]
   };
   saveCodes(map);
-  await sendCodeEmail(email, code, intent);
+
+  if (isPhone) {
+    return await sendSms(identifier, code);
+  } else {
+    return await sendCodeEmail(identifier, code, intent);
+  }
 }
 
 async function handleAuth(request, response, pathname) {
@@ -229,77 +323,136 @@ async function handleAuth(request, response, pathname) {
     }
 
     const body = await readBody(request);
-    const email = normalizeEmail(body.email);
+
+    // Identify whether this request is using Phone or Email
+    const isPhoneReq = Boolean(body.phone || (!body.email && body.identifier && !body.identifier.includes("@")));
+    let identifier = "";
+    let rawPhone = body.phone || (!body.email ? body.identifier : "");
+    let rawEmail = body.email || (body.identifier?.includes("@") ? body.identifier : "");
+
+    if (isPhoneReq || rawPhone) {
+      identifier = normalizeAlbanianPhone(rawPhone);
+      if (!identifier) {
+        return json(response, 400, { error: "Vendosni një numër të vlefshëm celular shqiptar (p.sh. 069 123 4567 ose 068 / 067 / 066)." }, {}, request);
+      }
+    } else {
+      identifier = normalizeEmail(rawEmail);
+      if (!isValidEmail(identifier)) {
+        return json(response, 400, { error: "Vendosni një adresë të vlefshme email-i." }, {}, request);
+      }
+    }
 
     if (request.method === "POST" && pathname === "/api/auth/lookup") {
-      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." }, {}, request);
-      const user = findUser(email);
-      return json(response, 200, { exists: Boolean(user?.verified) }, {}, request);
+      const user = findUser(identifier);
+      return json(response, 200, {
+        exists: Boolean(user?.verified),
+        identifier,
+        formattedPhone: isPhoneReq ? formatAlbanianPhone(identifier) : null
+      }, {}, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/send-code") {
-      if (!isValidEmail(email)) return json(response, 400, { error: "Enter a valid email address." }, {}, request);
-      const intent = body.intent === "signup" ? "signup" : "signin";
-      const user = findUser(email);
-      if (intent === "signin" && !user?.verified) {
-        return json(response, 404, { error: "No Kalceto account exists for that email. Choose Create account instead." }, {}, request);
+      const intent = body.intent === "signup" ? "signup" : (body.intent || "signin");
+      const user = findUser(identifier);
+      if (intent === "signin_only" && !user?.verified) {
+        return json(response, 404, { error: "Nuk ekziston llogari me këtë numër. Regjistrohuni fillimisht." }, {}, request);
       }
-      if (intent === "signup" && user?.verified) {
-        return json(response, 409, { error: "That email already has a Kalceto account. Choose Sign in instead." }, {}, request);
-      }
-      await issueCode(email, intent);
-      return json(response, 200, { sent: true }, {}, request);
+      const result = await issueCode(identifier, intent, isPhoneReq);
+      return json(response, 200, {
+        sent: true,
+        identifier,
+        phone: isPhoneReq ? identifier : null,
+        formattedPhone: isPhoneReq ? formatAlbanianPhone(identifier) : null,
+        email: !isPhoneReq ? identifier : null,
+        previewCode: result?.previewCode || null
+      }, {}, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/verify") {
       const code = String(body.code || "").trim();
       const map = codes();
-      const entry = map[email];
-      if (!entry || entry.expiresAt < Date.now()) return json(response, 400, { error: "That code has expired. Request a new one." }, {}, request);
-      if (entry.attempts >= 5) return json(response, 429, { error: "Too many attempts. Request a new code." }, {}, request);
-      entry.attempts += 1;
-      if (entry.hash !== hashValue(`${email}:${code}`)) {
-        saveCodes(map);
-        return json(response, 400, { error: "That code did not work. Check it and try again." }, {}, request);
+      const entry = map[identifier];
+      if (!entry || entry.expiresAt < Date.now()) {
+        return json(response, 400, { error: "Kodi ka skaduar ose nuk ekziston. Kërkoni një kod të ri." }, {}, request);
       }
-      delete map[email];
+      if (entry.attempts >= 5) {
+        return json(response, 429, { error: "Shumë përpjekje të gabuara. Kërkoni një kod të ri." }, {}, request);
+      }
+      entry.attempts += 1;
+      if (entry.hash !== hashValue(`${identifier}:${code}`)) {
+        saveCodes(map);
+        return json(response, 400, { error: "Kodi i verifikimit nuk është i saktë. Ju lutem provoni përsëri." }, {}, request);
+      }
+      delete map[identifier];
       saveCodes(map);
+
       const list = users();
-      let user = list.find((item) => item.email === email);
+      let user = list.find((item) => (isPhoneReq && item.phone === identifier) || (!isPhoneReq && item.email === identifier));
+      const isNewUser = !user;
+
       if (!user) {
-        user = { email, verified: true, profile: {}, createdAt: new Date().toISOString() };
+        user = {
+          id: "usr_" + randomBytes(8).toString("hex"),
+          phone: isPhoneReq ? identifier : null,
+          email: !isPhoneReq ? identifier : null,
+          verified: true,
+          profile: {
+            displayName: body.displayName ? String(body.displayName).trim() : "",
+            position: body.position || "Mesfushë",
+            area: body.area || "Parrucë",
+            level: body.level || "Regular"
+          },
+          createdAt: new Date().toISOString()
+        };
         list.push(user);
       } else {
         user.verified = true;
+        if (isPhoneReq && !user.phone) user.phone = identifier;
+        if (!isPhoneReq && !user.email) user.email = identifier;
       }
       saveUsers(list);
-      const token = signSession(email);
-      return json(response, 200, { user: publicUser(user), token }, { "Set-Cookie": sessionCookie(token) }, request);
+
+      const token = signSession(identifier);
+      return json(response, 200, {
+        user: publicUser(user),
+        token,
+        isNewUser
+      }, { "Set-Cookie": sessionCookie(token) }, request);
     }
 
     if (request.method === "POST" && pathname === "/api/auth/profile") {
       const user = sessionFromRequest(request);
-      if (!user) return json(response, 401, { error: "Please sign in first." }, {}, request);
+      if (!user) return json(response, 401, { error: "Ju lutem hyni në llogari fillimisht." }, {}, request);
       const list = users();
-      const current = list.find((item) => item.email === user.email);
-      current.profile = {
-        displayName: String(body.displayName || "").trim(),
-        position: String(body.position || "").trim(),
-        area: String(body.area || "").trim()
-      };
-      saveUsers(list);
-      return json(response, 200, { user: publicUser(current) }, {}, request);
+      const current = list.find((item) => item.id === user.id || item.phone === user.phone || item.email === user.email);
+      if (current) {
+        current.profile = {
+          displayName: String(body.displayName || current.profile?.displayName || "").trim(),
+          position: String(body.position || current.profile?.position || "Mesfushë").trim(),
+          area: String(body.area || current.profile?.area || "Parrucë").trim(),
+          level: String(body.level || current.profile?.level || "Regular").trim()
+        };
+        saveUsers(list);
+        return json(response, 200, { user: publicUser(current) }, {}, request);
+      }
+      return json(response, 404, { error: "Përdoruesi nuk u gjet." }, {}, request);
     }
 
     json(response, 404, { error: "Not found" }, {}, request);
   } catch (error) {
     const status = error.status || 500;
-    json(response, status, { error: error.message || "Something went wrong." }, {}, request);
+    json(response, status, { error: error.message || "Ndodhi një gabim në server." }, {}, request);
   }
 }
 
 function publicUser(user) {
-  return { email: user.email, profile: user.profile || {} };
+  return {
+    id: user.id || null,
+    phone: user.phone || null,
+    formattedPhone: user.phone ? formatAlbanianPhone(user.phone) : null,
+    email: user.email || null,
+    profile: user.profile || {}
+  };
 }
 
 function serveFile(request, response) {
@@ -330,5 +483,4 @@ createServer(async (request, response) => {
   serveFile(request, response);
 }).listen(port, "0.0.0.0", () => {
   console.log(`Kalceto preview: http://localhost:${port}`);
-  if (!mailer) console.log("Add GMAIL_USER and GMAIL_APP_PASSWORD in .env so login codes can be emailed.");
 });

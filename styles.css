@@ -16,3 +16,44 @@
 @media (max-width:450px) { .shell { width:min(100% - 28px,1180px); } .field-grid { grid-template-columns:1fr; } .mode-tab { padding-left:.55rem; padding-right:.55rem; } .chip-set { gap:.35rem; } .gallery-grid { grid-template-columns:1fr; } .gallery-photo.wide { aspect-ratio:1.1; } .gallery-photo:not(.wide) { display:none; } .founder-list { grid-template-columns:1fr 1fr; } .founder-list h3 { font-size:1.27rem; } .tournament-stamp { opacity:.62; } }
 .auth-panel[hidden] { display:none; } .dialog form .text-button { justify-self:start; } .auth-divider { display:flex; align-items:center; gap:.7rem; color:var(--muted); font-size:.72rem; margin:1.25rem 0; } .auth-divider:before,.auth-divider:after { content:""; height:1px; background:var(--line); flex:1; } .social-options { display:grid; grid-template-columns:repeat(3,1fr); gap:.55rem; } .social-login { min-height:42px; border:1px solid #cdd1c8; background:white; color:var(--ink); font-size:.77rem; font-weight:700; } .social-login:hover { border-color:var(--ink); background:#f3f4ee; } .auth-status { min-height:1.3em; color:var(--field); font-size:.77rem; margin:1rem 0 0; } .auth-status.error { color:#af3823; } .dialog button:disabled { cursor:wait; opacity:.7; }
 .email-actions { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; } .email-actions .button { padding-inline:.55rem; }
+.auth-eyebrow-row { display:flex; align-items:center; gap:.65rem; margin-bottom:.5rem; }
+.auth-eyebrow-row .eyebrow { margin:0; }
+.badge-albania { display:inline-flex; align-items:center; gap:.3rem; background:var(--ink); color:white; font-size:.65rem; font-weight:800; letter-spacing:.08em; padding:.2rem .45rem; border-radius:2px; }
+.badge-success { display:inline-flex; align-items:center; gap:.25rem; background:#1b633d; color:var(--lime); font-size:.65rem; font-weight:800; letter-spacing:.08em; padding:.2rem .45rem; border-radius:2px; }
+.pulse-indicator { width:8px; height:8px; background:var(--orange); border-radius:50%; box-shadow:0 0 0 4px rgba(244,111,67,.2); animation:pulseGlow 1.6s infinite ease-in-out; }
+@keyframes pulseGlow { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.25);opacity:.6} }
+.phone-input-wrap { display:flex; align-items:stretch; border:1.5px solid #cdd1c8; background:white; transition:border-color .15s, box-shadow .15s; margin-top:.35rem; }
+.phone-input-wrap:focus-within { border-color:var(--ink); box-shadow:0 0 0 3px rgba(19,34,28,.08); }
+.country-prefix { display:flex; align-items:center; gap:.4rem; background:#f0f2eb; padding:0 .8rem; border-right:1px solid #d8d9d1; font-weight:700; font-size:.9rem; color:var(--ink); user-select:none; }
+.country-flag { font-size:1.15rem; line-height:1; }
+.country-code { font-family:var(--sans); font-weight:800; letter-spacing:.02em; }
+.phone-input-wrap input { border:0; min-height:48px; font-size:1.05rem; font-weight:700; letter-spacing:.04em; padding:0 .85rem; color:var(--ink); width:100%; outline:none; }
+.phone-tips { display:flex; align-items:center; gap:.5rem; margin-top:.45rem; font-size:.73rem; }
+.tip-pill { background:#e5e9dd; color:var(--field-dark); font-weight:700; padding:.15rem .45rem; border-radius:2px; font-size:.67rem; text-transform:uppercase; letter-spacing:.04em; }
+.tip-text { color:var(--muted); font-size:.74rem; }
+.otp-inputs { display:flex; gap:.5rem; justify-content:center; margin:.65rem 0 1.25rem; }
+.otp-digit { width:46px; height:54px; text-align:center; font-family:var(--serif); font-size:1.8rem; font-weight:800; color:var(--ink); border:2px solid #cdd1c8; background:white; border-radius:4px; transition:border-color .15s, box-shadow .15s, transform .1s; padding:0; }
+.otp-digit:focus { border-color:var(--orange); box-shadow:0 0 0 3px rgba(244,111,67,.2); outline:none; transform:scale(1.04); }
+.otp-digit.filled { border-color:var(--field); background:#f4f7f1; }
+.code-actions-row { display:flex; flex-direction:column; gap:.45rem; margin-top:.9rem; }
+.countdown-text { font-size:.78rem; color:var(--muted); }
+.countdown-text strong { color:var(--orange); }
+.sms-banner { position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:1000; width:min(500px, calc(100% - 24px)); background:linear-gradient(135deg, rgba(18,57,42,.98), rgba(12,38,28,.98)); backdrop-filter:blur(14px); border:1.5px solid rgba(215,235,76,.4); border-radius:10px; color:white; padding:.85rem 1rem; box-shadow:0 18px 50px rgba(0,0,0,.45); display:flex; align-items:center; gap:.85rem; animation:slideInTop .3s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes slideInTop { from{transform:translate(-50%,-100%);opacity:0} to{transform:translate(-50%,0);opacity:1} }
+.sms-banner-badge { background:var(--lime); color:var(--ink); font-weight:800; font-size:.68rem; letter-spacing:.05em; padding:.3rem .5rem; border-radius:4px; white-space:nowrap; }
+.sms-banner-body { flex:1; min-width:0; }
+.sms-banner-title { display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:var(--lime); font-weight:800; }
+.sms-banner-msg { margin:2px 0 0; font-size:.82rem; color:#e1eae3; }
+.sms-banner-msg strong { color:#ffffff; font-size:1.05rem; letter-spacing:2px; background:rgba(255,255,255,.18); padding:1px 6px; border-radius:3px; }
+.sms-banner-btn { background:var(--orange); color:white; border:0; padding:.45rem .85rem; font-weight:800; font-size:.76rem; border-radius:4px; cursor:pointer; white-space:nowrap; transition:transform .15s, background .15s; }
+.sms-banner-btn:hover { transform:scale(1.04); background:#ff7f54; }
+.user-card-summary { display:flex; gap:1.15rem; align-items:center; background:#ecece5; padding:1.2rem; margin:1rem 0 1.25rem; border:1px solid var(--line); }
+.user-avatar-large { width:58px; height:58px; background:var(--field); color:var(--lime); display:grid; place-items:center; font-family:var(--serif); font-size:1.85rem; font-weight:700; flex-shrink:0; }
+.user-details { flex:1; min-width:0; }
+.verified-phone-tag { display:flex; align-items:center; gap:.45rem; margin:.3rem 0; font-size:.88rem; flex-wrap:wrap; }
+.verified-pill { background:#dcf5e4; color:#186834; border:1px solid #b3e7c2; font-weight:700; font-size:.67rem; padding:.15rem .45rem; border-radius:2px; }
+.user-meta-sub { margin:0; font-size:.8rem; color:var(--muted); font-weight:600; }
+.account-actions-box { display:flex; flex-direction:column; gap:.65rem; }
+.alt-auth-actions { margin-top:.5rem; }
+.switch-auth-btn { font-size:.78rem; color:var(--muted); }
+.switch-auth-btn:hover { color:var(--ink); }
