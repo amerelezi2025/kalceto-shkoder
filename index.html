@@ -3,12 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <meta name="description" content="Kalceto helps Shkoder find players, fair matches, and nearby indoor football pitches." />
     <title>Kalceto | Find your game in Shkoder</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=3.1" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -212,32 +215,7 @@
             Dërgo Kodin me SMS <span aria-hidden="true">→</span>
           </button>
         </form>
-        <div class="auth-divider"><span>ose vazhdoni me</span></div>
-        <div class="alt-auth-actions">
-          <button class="text-button switch-auth-btn" id="switch-to-email" type="button">Hyr me adresë email-i <span aria-hidden="true">→</span></button>
-        </div>
         <p class="auth-status" id="phone-status" role="status" aria-live="polite"></p>
-      </section>
-
-      <!-- Step 1b: Email Entry (Alternative) -->
-      <section class="auth-panel" id="email-step" hidden>
-        <p class="eyebrow">HYRJE ME EMAIL</p>
-        <h2>Hyrje me email</h2>
-        <p>Vendosni email-in tuaj për të marrë kodin e konfirmimit në inbox.</p>
-        <form id="email-form">
-          <label>Adresa e email-it
-            <input id="auth-email" type="email" autocomplete="email" placeholder="juaj@email.com" />
-          </label>
-          <div class="email-actions">
-            <button class="button button-accent" type="submit" data-auth-intent="signin">Vazhdo</button>
-            <button class="button button-outline" type="submit" data-auth-intent="signup">Krijo llogari</button>
-          </div>
-        </form>
-        <div class="auth-divider"><span>ose</span></div>
-        <div class="alt-auth-actions">
-          <button class="text-button switch-auth-btn" id="switch-to-phone" type="button">Kthehu te hyrja me telefon (🇦🇱 SMS) <span aria-hidden="true">→</span></button>
-        </div>
-        <p class="auth-status" id="auth-status" role="status" aria-live="polite"></p>
       </section>
 
       <!-- Step 2: 6-Digit OTP Verification Screen -->
@@ -345,6 +323,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=3.1"></script>
   </body>
 </html>

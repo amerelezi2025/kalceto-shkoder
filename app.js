@@ -425,24 +425,13 @@ document.querySelectorAll(".profile-trigger").forEach((button) => {
     if (signedInUser) {
       setAuthView("account-view");
     } else {
-      setAuthView(isPhoneAuth ? "phone" : "email");
+      setAuthView("phone");
     }
     dialog.showModal();
   });
 });
 
 document.querySelector(".dialog-close")?.addEventListener("click", () => dialog.close());
-
-// Switch between Phone and Email
-document.querySelector("#switch-to-email")?.addEventListener("click", () => {
-  isPhoneAuth = false;
-  setAuthView("email");
-});
-
-document.querySelector("#switch-to-phone")?.addEventListener("click", () => {
-  isPhoneAuth = true;
-  setAuthView("phone");
-});
 
 // Phone Form Submit
 document.querySelector("#phone-form")?.addEventListener("submit", async (event) => {
@@ -484,38 +473,10 @@ document.querySelector("#phone-form")?.addEventListener("submit", async (event) 
   }
 });
 
-// Email Form Submit (Alternative)
-document.querySelector("#email-form")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const email = document.querySelector("#auth-email").value.trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    setAuthStatus("#auth-status", "Vendosni një adresë të vlefshme email-i.", true);
-    return;
-  }
-  currentIdentifier = email;
-  currentFormattedIdentifier = email;
-  isPhoneAuth = false;
-
-  const buttons = event.currentTarget.querySelectorAll("button");
-  buttons.forEach(b => b.disabled = true);
-  setAuthStatus("#auth-status", "Duke dërguar kodin në email...");
-
-  try {
-    const res = await requestOtp(email, false);
-    document.querySelector("#code-target").textContent = email;
-    clearOtpInputs();
-    setAuthView("code");
-    startResendCountdown(45);
-    setAuthStatus("#code-status", `Kodi i konfirmimit u dërgua te ${email}.`);
-    if (res.previewCode) {
-      showSmsNotification(res.previewCode, email);
-    }
-    setTimeout(() => otpDigits[0]?.focus(), 100);
-  } catch (error) {
-    setAuthStatus("#auth-status", error.message || "Ndodhi një problem.", true);
-  } finally {
-    buttons.forEach(b => b.disabled = false);
-  }
+// Change Target (back to phone entry)
+document.querySelector("#change-target")?.addEventListener("click", () => {
+  setAuthView("phone");
+  if (smsBanner) smsBanner.hidden = true;
 });
 
 // Code Verification Form Submit
@@ -532,11 +493,10 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
   setAuthStatus("#code-status", "Duke verifikuar kodin...");
 
   try {
-    const data = await verifyOtp(currentIdentifier, code, isPhoneAuth);
+    const data = await verifyOtp(currentIdentifier, code, true);
     updateAccountUi(data.user);
     if (smsBanner) smsBanner.hidden = true;
 
-    // If profile name exists, go to account view, otherwise go to profile completion
     if (data.user.profile?.displayName) {
       setAuthView("account-view");
       showToast(`Mirëseerdhe përsëri, ${data.user.profile.displayName}!`);
@@ -555,7 +515,7 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
 document.querySelector("#resend-code")?.addEventListener("click", async () => {
   setAuthStatus("#code-status", "Duke ridërguar kodin...");
   try {
-    const res = await requestOtp(currentIdentifier, isPhoneAuth);
+    const res = await requestOtp(currentIdentifier, true);
     clearOtpInputs();
     startResendCountdown(45);
     setAuthStatus("#code-status", `Një kod i ri u dërgua te ${currentFormattedIdentifier}.`);
@@ -565,12 +525,6 @@ document.querySelector("#resend-code")?.addEventListener("click", async () => {
   } catch (error) {
     setAuthStatus("#code-status", error.message, true);
   }
-});
-
-// Change Target (back to phone/email entry)
-document.querySelector("#change-target")?.addEventListener("click", () => {
-  setAuthView(isPhoneAuth ? "phone" : "email");
-  if (smsBanner) smsBanner.hidden = true;
 });
 
 // Profile Form Submit (Save Profile)
