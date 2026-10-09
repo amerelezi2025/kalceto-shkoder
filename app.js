@@ -90,6 +90,8 @@ const authApiBase = window.KALCETO_AUTH?.apiBase ?? "";
 let signedInUser = null;
 let currentIdentifier = "";
 let currentFormattedIdentifier = "";
+let currentPasswordToken = "";
+let currentHasPassword = false;
 let countdownTimerInterval = null;
 
 // Normalization & Formatting Helpers
@@ -209,7 +211,7 @@ function authHeaders(hasBody) {
 
 async function authRequest(path, body) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const response = await fetch(`${authApiBase}/api/auth/${path}`, {
       method: body === undefined ? "GET" : "POST",
@@ -229,10 +231,95 @@ async function authRequest(path, body) {
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === "AbortError") {
-      throw new Error("Serveri vonoi të përgjigjej. Ju lutem provoni përsëri.");
+      throw new Error("Serveri vonoi të përgjigjej. Ju lutem provoni përsëri pas disa sekondash.");
+    }
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error("Nuk mund të lidhet me serverin. Serveri mund të jetë duke u ndezur (prisni 30-60 sekonda dhe provoni përsëri) ose kontrolloni lidhjen tuaj të internetit.");
     }
     throw error;
   }
+}
+
+function normalizeAuthEmail(raw) {
+  return String(raw || "").trim().toLowerCase();
+}
+
+function isValidAuthEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function currentReturnUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function requestEmailLink(email) {
+  return await authRequest("send-link", {
+    email,
+    returnTo: currentReturnUrl()
+  });
+}
+
+async function verifyEmailLinkToken(token) {
+  return await authRequest("verify-link", { token });
+}
+
+async function completePasswordAuth(email, password, passwordToken) {
+  return await authRequest("password", { email, password, passwordToken });
+}
+
+function configurePasswordStep(email, hasPassword) {
+  currentIdentifier = normalizeAuthEmail(email);
+  currentFormattedIdentifier = currentIdentifier;
+  currentHasPassword = Boolean(hasPassword);
+
+  const passwordTitle = document.querySelector("#password-title");
+  const passwordCopy = document.querySelector("#password-copy");
+  const passwordInput = document.querySelector("#auth-password");
+  const confirmWrap = document.querySelector("#confirm-password-wrap");
+  const confirmInput = document.querySelector("#auth-password-confirm");
+
+  if (passwordTitle) passwordTitle.textContent = currentHasPassword ? "Vendosni fjalëkalimin." : "Krijoni fjalëkalimin.";
+  if (passwordCopy) {
+    passwordCopy.textContent = currentHasPassword
+      ? `Email-i ${currentIdentifier} u verifikua. Shkruani fjalëkalimin për të hyrë.`
+      : `Email-i ${currentIdentifier} u verifikua. Krijoni një fjalëkalim për llogarinë tuaj.`;
+  }
+  if (passwordInput) {
+    passwordInput.value = "";
+    passwordInput.autocomplete = currentHasPassword ? "current-password" : "new-password";
+  }
+  if (confirmWrap) confirmWrap.hidden = currentHasPassword;
+  if (confirmInput) {
+    confirmInput.value = "";
+    confirmInput.required = !currentHasPassword;
+  }
+  setAuthStatus("#password-status", "");
+}
+
+async function handleVerificationLinkFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("verify_email");
+  if (!token) return false;
+
+  dialog?.showModal();
+  setAuthView("password");
+  setAuthStatus("#password-status", "Duke verifikuar linkun e email-it...");
+
+  try {
+    const data = await verifyEmailLinkToken(token);
+    currentPasswordToken = data.passwordToken;
+    configurePasswordStep(data.email, data.hasPassword);
+    setAuthStatus("#password-status", "Email-i u verifikua. Vendosni fjalëkalimin për të vazhduar.");
+  } catch (error) {
+    currentPasswordToken = "";
+    setAuthView("email");
+    setAuthStatus("#email-status", error.message || "Linku i verifikimit nuk është i vlefshëm.", true);
+  } finally {
+    params.delete("verify_email");
+    const cleanQuery = params.toString();
+    window.history.replaceState({}, document.title, `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash}`);
+  }
+  return true;
 }
 
 // 6-Digit OTP Box Management
@@ -383,7 +470,7 @@ function updateAccountUi(user) {
   if (user) {
     const name = user.profile?.displayName || "Lojtar Kalceto";
     const initials = name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "LK";
-    const phoneDisplay = user.formattedPhone || formatAlbanianPhone(user.phone) || user.email || "+355 69 ...";
+    const phoneDisplay = user.email || user.formattedPhone || formatAlbanianPhone(user.phone) || "email@example.com";
     const pos = user.profile?.position || "Mesfushë";
     const area = user.profile?.area || "Parrucë";
 
@@ -404,7 +491,7 @@ document.querySelectorAll(".profile-trigger").forEach((button) => {
     if (signedInUser) {
       setAuthView("account-view");
     } else {
-      setAuthView("phone");
+      setAuthView("email");
     }
     dialog.showModal();
   });
@@ -412,61 +499,83 @@ document.querySelectorAll(".profile-trigger").forEach((button) => {
 
 document.querySelector(".dialog-close")?.addEventListener("click", () => dialog.close());
 
-// Phone Form Submit
-document.querySelector("#phone-form")?.addEventListener("submit", async (event) => {
+// Email Form Submit
+document.querySelector("#email-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const raw = document.querySelector("#auth-phone").value.trim();
-  const normalized = normalizeAlbanianPhone(raw);
+  const email = normalizeAuthEmail(document.querySelector("#auth-email")?.value);
 
-  if (!normalized) {
-    setAuthStatus("#phone-status", "Vendosni një numër të saktë celular: 06x xxx xxxx ose +355 6x xxx xxxx (pa 0 pas +355).", true);
+  if (!isValidAuthEmail(email)) {
+    setAuthStatus("#email-status", "Vendosni një adresë të vlefshme email-i.", true);
     return;
   }
 
-  currentIdentifier = normalized;
-  currentFormattedIdentifier = formatAlbanianPhoneDisplay(normalized);
+  currentIdentifier = email;
+  currentFormattedIdentifier = email;
+  currentPasswordToken = "";
 
-  const btn = document.querySelector("#phone-submit-btn");
+  const btn = document.querySelector("#email-submit-btn");
   if (btn) btn.disabled = true;
-  setAuthStatus("#phone-status", "Duke dërguar kodin me SMS në celular...");
+  setAuthStatus("#email-status", "Duke dërguar linkun e verifikimit...");
 
   try {
-    await requestOtp(normalized);
-    document.querySelector("#code-target").textContent = currentFormattedIdentifier;
-    clearOtpInputs();
-    setAuthView("code");
-    startResendCountdown(60);
-    setAuthStatus("#code-status", `Kodi 6-shifror u dërgua me SMS në celularin tuaj (${currentFormattedIdentifier}).`);
-    setTimeout(() => {
-      otpDigits[0]?.focus();
-    }, 100);
+    const data = await requestEmailLink(email);
+    const target = document.querySelector("#link-target");
+    if (target) target.textContent = email;
+    setAuthView("link");
+    setAuthStatus("#link-status", data.previewLink ? `Serveri lokal nuk ka Gmail të konfiguruar. Hapni këtë link testimi: ${data.previewLink}` : `Linku i verifikimit u dërgua te ${email}.`);
   } catch (error) {
-    setAuthStatus("#phone-status", error.message || "Ndodhi një problem me dërgimin e SMS.", true);
+    setAuthStatus("#email-status", error.message || "Ndodhi një problem me dërgimin e email-it.", true);
   } finally {
     if (btn) btn.disabled = false;
   }
 });
 
-// Change Target (back to phone entry)
-document.querySelector("#change-target")?.addEventListener("click", () => {
-  setAuthView("phone");
+// Change Target (back to email entry)
+document.querySelector("#change-email")?.addEventListener("click", () => {
+  setAuthView("email");
 });
 
-// Code Verification Form Submit
-document.querySelector("#code-form")?.addEventListener("submit", async (event) => {
+// Resend Email Verification Link
+document.querySelector("#resend-link")?.addEventListener("click", async () => {
+  if (!currentIdentifier) {
+    setAuthView("email");
+    return;
+  }
+  setAuthStatus("#link-status", "Duke ridërguar linkun e verifikimit...");
+  try {
+    const data = await requestEmailLink(currentIdentifier);
+    setAuthStatus("#link-status", data.previewLink ? `Serveri lokal nuk ka Gmail të konfiguruar. Hapni këtë link testimi: ${data.previewLink}` : `Një link i ri u dërgua te ${currentIdentifier}.`);
+  } catch (error) {
+    setAuthStatus("#link-status", error.message, true);
+  }
+});
+
+// Password Form Submit
+document.querySelector("#password-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const code = getEnteredOtp() || document.querySelector("#auth-code").value.trim();
-  if (code.length !== 6) {
-    setAuthStatus("#code-status", "Ju lutem plotësoni të gjitha 6 shifrat e kodit nga SMS.", true);
+  const password = document.querySelector("#auth-password")?.value || "";
+  const confirm = document.querySelector("#auth-password-confirm")?.value || "";
+
+  if (!currentPasswordToken || !currentIdentifier) {
+    setAuthStatus("#password-status", "Verifikoni email-in me linkun e dërguar para fjalëkalimit.", true);
+    return;
+  }
+  if (password.length < 8) {
+    setAuthStatus("#password-status", "Fjalëkalimi duhet të ketë të paktën 8 karaktere.", true);
+    return;
+  }
+  if (!currentHasPassword && password !== confirm) {
+    setAuthStatus("#password-status", "Fjalëkalimet nuk përputhen.", true);
     return;
   }
 
-  const btn = document.querySelector("#code-submit-btn");
+  const btn = document.querySelector("#password-submit-btn");
   if (btn) btn.disabled = true;
-  setAuthStatus("#code-status", "Duke verifikuar kodin...");
+  setAuthStatus("#password-status", "Duke hyrë në llogari...");
 
   try {
-    const data = await verifyOtp(currentIdentifier, code);
+    const data = await completePasswordAuth(currentIdentifier, password, currentPasswordToken);
+    currentPasswordToken = "";
     updateAccountUi(data.user);
 
     if (data.user.profile?.displayName) {
@@ -474,26 +583,18 @@ document.querySelector("#code-form")?.addEventListener("submit", async (event) =
       showToast(`Mirëseerdhe përsëri, ${data.user.profile.displayName}!`);
     } else {
       setAuthView("profile");
-      setAuthStatus("#profile-status", "Numri u verifikua me sukses! Plotësoni profilin tuaj.");
+      setAuthStatus("#profile-status", "Email-i dhe fjalëkalimi u verifikuan me sukses! Plotësoni profilin tuaj.");
     }
   } catch (error) {
-    setAuthStatus("#code-status", error.message || "Kodi i verifikimit nuk është i saktë.", true);
+    setAuthStatus("#password-status", error.message || "Nuk mund të hyni me këtë fjalëkalim.", true);
   } finally {
     if (btn) btn.disabled = false;
   }
 });
 
-// Resend Code Action
-document.querySelector("#resend-code")?.addEventListener("click", async () => {
-  setAuthStatus("#code-status", "Duke ridërguar kodin me SMS...");
-  try {
-    await requestOtp(currentIdentifier);
-    clearOtpInputs();
-    startResendCountdown(60);
-    setAuthStatus("#code-status", `Një kod i ri u dërgua me SMS te ${currentFormattedIdentifier}.`);
-  } catch (error) {
-    setAuthStatus("#code-status", error.message, true);
-  }
+document.querySelector("#password-start-over")?.addEventListener("click", () => {
+  currentPasswordToken = "";
+  setAuthView("email");
 });
 
 // Profile Form Submit (Save Profile)
@@ -537,7 +638,7 @@ document.querySelector("#edit-profile-btn")?.addEventListener("click", () => {
 // Sign Out Action
 document.querySelectorAll(".sign-out").forEach((btn) => {
   btn.addEventListener("click", async () => {
-    try { await authRequest("logout", {}); } catch {}
+    try { await authRequest("logout", {}); } catch { }
     localStorage.removeItem("kalceto_session");
     localStorage.removeItem("kalceto_user");
     updateAccountUi(null);
@@ -551,15 +652,18 @@ const savedLocalUser = localStorage.getItem("kalceto_user");
 if (savedLocalUser) {
   try {
     updateAccountUi(JSON.parse(savedLocalUser));
-  } catch {}
+  } catch { }
 }
+
+const hasVerificationLink = new URLSearchParams(window.location.search).has("verify_email");
+handleVerificationLinkFromUrl();
 
 authRequest("session")
   .then((data) => {
-    if (data.user) updateAccountUi(data.user);
+    if (data.user && !hasVerificationLink) updateAccountUi(data.user);
   })
   .catch(() => {
-    if (!savedLocalUser) updateAccountUi(null);
+    if (!savedLocalUser && !hasVerificationLink) updateAccountUi(null);
   });
 
 document.querySelectorAll(".team-trigger").forEach((button) => {

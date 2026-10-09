@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=3.2" />
+    <link rel="stylesheet" href="styles.css?v=3.3" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -180,65 +180,68 @@
     <dialog id="account-dialog" class="dialog">
       <button class="dialog-close" type="button" aria-label="Mbyll dritaren">×</button>
 
-      <!-- Step 1: Albanian Phone Number Entry (Primary) -->
-      <section class="auth-panel" id="phone-step">
+      <!-- Step 1: Email Entry -->
+      <section class="auth-panel" id="email-step">
         <div class="auth-eyebrow-row">
-          <span class="badge-albania">🇦🇱 ALBANIA</span>
-          <p class="eyebrow">HYRJE ME TELEFON</p>
+          <span class="badge-albania">EMAIL</span>
+          <p class="eyebrow">HYRJE E SIGURT</p>
         </div>
         <h2>Gati për lojë?</h2>
-        <p>Vendosni numrin tuaj të telefonit në Shqipëri. Do t'ju dërgojmë menjëherë një kod verifikimi 6-shifror me SMS.</p>
-        <form id="phone-form">
-          <label for="auth-phone">Numri i celularit
-            <div class="phone-input-wrap">
-              <span class="country-prefix">
-                <span class="country-flag">🇦🇱</span>
-              </span>
-              <input id="auth-phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="069 123 4567 ose +355 69 123 4567" />
-            </div>
+        <p>Vendosni email-in tuaj. Do t'ju dërgojmë një link verifikimi dhe pastaj do të vendosni fjalëkalimin.</p>
+        <form id="email-form">
+          <label for="auth-email">Email-i
+            <input id="auth-email" type="email" autocomplete="email" required placeholder="emri@example.com" />
           </label>
           <div class="phone-tips">
-            <span class="tip-pill">FORMATET</span>
-            <span class="tip-text">06x xxx xxxx ose +355 6x xxx xxxx</span>
+            <span class="tip-pill">2 HAPA</span>
+            <span class="tip-text">Verifikim email-i + fjalëkalim</span>
           </div>
-          <button class="button button-accent button-wide" type="submit" id="phone-submit-btn">
-            Dërgo Kodin me SMS <span aria-hidden="true">→</span>
+          <button class="button button-accent button-wide" type="submit" id="email-submit-btn">
+            Dërgo Linkun e Verifikimit <span aria-hidden="true">→</span>
           </button>
         </form>
-        <p class="auth-status" id="phone-status" role="status" aria-live="polite"></p>
+        <p class="auth-status" id="email-status" role="status" aria-live="polite"></p>
       </section>
 
-      <!-- Step 2: 6-Digit OTP Verification Screen -->
-      <section class="auth-panel" id="code-step" hidden>
+      <!-- Step 2: Waiting for Email Link -->
+      <section class="auth-panel" id="link-step" hidden>
         <div class="auth-eyebrow-row">
           <span class="pulse-indicator"></span>
-          <p class="eyebrow">VERIFIKIMI ME SMS</p>
+          <p class="eyebrow">KONTROLLONI EMAIL-IN</p>
         </div>
-        <h2>Vendosni kodin.</h2>
-        <p>Kodi 6-shifror u dërgua me SMS te <strong id="code-target">+355 69 ...</strong></p>
-        <form id="code-form">
-          <label>Kodi i konfirmimit (6 shifra)
-            <div class="otp-inputs" id="otp-inputs">
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="0" autocomplete="off" />
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="1" autocomplete="off" />
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="2" autocomplete="off" />
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="3" autocomplete="off" />
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="4" autocomplete="off" />
-              <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" pattern="[0-9]" data-idx="5" autocomplete="off" />
-            </div>
-            <input id="auth-code" type="hidden" />
-          </label>
-          <button class="button button-accent button-wide" type="submit" id="code-submit-btn">Verifiko dhe Vazhdo <span aria-hidden="true">✓</span></button>
-        </form>
+        <h2>Hapni linkun.</h2>
+        <p>Dërguam një email te <strong id="link-target">emri@example.com</strong>. Klikoni butonin e verifikimit në email, pastaj do të hapet hapi i fjalëkalimit.</p>
         <div class="code-actions-row">
-          <div id="countdown-wrap" class="countdown-text">Ridërgo kodin pas <strong id="countdown-timer">45s</strong></div>
-          <button class="text-button" id="resend-code" type="button" style="display:none;">Ridërgo kodin me SMS <span aria-hidden="true">↻</span></button>
-          <button class="text-button" id="change-target" type="button">Ndrysho numrin e telefonit <span aria-hidden="true">←</span></button>
+          <button class="text-button" id="resend-link" type="button">Ridërgo linkun e verifikimit <span aria-hidden="true">↻</span></button>
+          <button class="text-button" id="change-email" type="button">Ndrysho email-in <span aria-hidden="true">←</span></button>
         </div>
-        <p class="auth-status" id="code-status" role="status" aria-live="polite"></p>
+        <p class="auth-status" id="link-status" role="status" aria-live="polite"></p>
       </section>
 
-      <!-- Step 3: Complete Player Profile -->
+      <!-- Step 3: Password After Email Verification -->
+      <section class="auth-panel" id="password-step" hidden>
+        <div class="auth-eyebrow-row">
+          <span class="badge-success">✓ EMAIL</span>
+          <p class="eyebrow">FJALËKALIMI</p>
+        </div>
+        <h2 id="password-title">Vendosni fjalëkalimin.</h2>
+        <p id="password-copy">Email-i u verifikua. Tani vendosni fjalëkalimin për të hyrë.</p>
+        <form id="password-form">
+          <label for="auth-password">Fjalëkalimi
+            <input id="auth-password" type="password" autocomplete="current-password" required minlength="8" placeholder="Të paktën 8 karaktere" />
+          </label>
+          <label id="confirm-password-wrap" for="auth-password-confirm" hidden>Konfirmo fjalëkalimin
+            <input id="auth-password-confirm" type="password" autocomplete="new-password" minlength="8" placeholder="Shkruajeni përsëri" />
+          </label>
+          <button class="button button-accent button-wide" type="submit" id="password-submit-btn">Vazhdo <span aria-hidden="true">→</span></button>
+        </form>
+        <div class="code-actions-row">
+          <button class="text-button" id="password-start-over" type="button">Përdor email tjetër <span aria-hidden="true">←</span></button>
+        </div>
+        <p class="auth-status" id="password-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- Step 4: Complete Player Profile -->
       <section class="auth-panel" id="profile-step" hidden>
         <div class="auth-eyebrow-row">
           <span class="badge-success">✓ E VERIFIKUAR</span>
@@ -286,7 +289,7 @@
         <p class="auth-status" id="profile-status" role="status" aria-live="polite"></p>
       </section>
 
-      <!-- Step 4: Account Card View (When already logged in) -->
+      <!-- Step 5: Account Card View (When already logged in) -->
       <section class="auth-panel" id="account-view-step" hidden>
         <div class="auth-eyebrow-row">
           <span class="badge-albania">🇦🇱 AKTIV</span>
@@ -297,9 +300,9 @@
           <div class="user-details">
             <h2 id="view-name" style="font-size:2rem;margin:0 0 4px">Lojtar Kalceto</h2>
             <div class="verified-phone-tag">
-              <span>🇦🇱</span>
-              <strong id="view-phone">+355 69 ...</strong>
-              <small class="verified-pill">✓ E Verifikuar me SMS</small>
+              <span>@</span>
+              <strong id="view-phone">email@example.com</strong>
+              <small class="verified-pill">✓ Email + Password</small>
             </div>
             <p class="user-meta-sub" id="view-meta">Mesfushë · Parrucë, Shkodër</p>
           </div>
@@ -313,6 +316,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
-    <script src="app.js?v=3.2"></script>
+    <script src="app.js?v=3.3"></script>
   </body>
 </html>

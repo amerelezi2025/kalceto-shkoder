@@ -2,17 +2,16 @@
 
 Uebsajti publik gjendet në: [https://amerelezi2025.github.io/kalceto-shkoder/](https://amerelezi2025.github.io/kalceto-shkoder/).
 
-Serveri dhe sistemi i verifikimit me SMS ndodhet në [https://kalceto-shkoder.onrender.com](https://kalceto-shkoder.onrender.com).
+Serveri dhe sistemi i hyrjes me email + fjalëkalim ndodhet në [https://kalceto-shkoder.onrender.com](https://kalceto-shkoder.onrender.com).
 
-## Sistemi i Hyrjes me Numër Telefoni (SMS OTP)
+## Sistemi i Hyrjes me Email + Fjalëkalim
 
-Platforma mbështet hyrjen me numra celularë shqiptarë (**Vodafone**, **ONE Albania** - prefiksat `067`, `068`, `069`, `066` / `+355`):
+Platforma kërkon dy hapa për hyrje. Përdoruesi nuk futet në llogari vetëm me email ose vetëm me fjalëkalim:
 
-1. **Vendosja e numrit**: Përdoruesi shkruan numrin (p.sh. `069 123 4567` ose `+355 68 123 4567`). Numri validohet dhe formatohet automatikisht sipas standardit kombëtar shqiptar.
-2. **Kodi 6-shifror me SMS**: Gjenerohet kodi OTP 6-shifror me vlefshmëri 10 minuta.
-3. **Simuluesi & Njoftimi i SMS**: Në ekran shfaqet një kartë interaktive SMS me opsionin **"Plotëso Kodin ⚡"** për testim të menjëhershëm si në uebsajtet profesionale.
-4. **Verifikimi me 6 kuti OTP**: Kutitë e kodit kalojnë automatikisht te shifra tjetër, mbështesin paste (kopjim/ngjitje) të menjëhershme dhe konfirmojnë hyrjen.
-5. **Profili i Lojtarit**: Pas verifikimit, lojtari zgjedh pozicionin (Mesfushë, Sulmues, Mbrojtës, Portier) dhe zonën në Shkodër (Parrucë, Rus, Perash, Bahçallëk, Kiras, Qendër, etj.).
+1. **Vendosja e email-it**: Përdoruesi shkruan email-in në modalin e hyrjes.
+2. **Linku i verifikimit**: Serveri dërgon email me butonin **Verify email**. Linku skadon pas 15 minutash.
+3. **Fjalëkalimi pas verifikimit**: Vetëm pasi linku hapet, faqja shfaq hapin e fjalëkalimit.
+4. **Profili i Lojtarit**: Pas hyrjes, lojtari plotëson emrin, pozicionin, nivelin dhe zonën në Shkodër.
 
 ## Nisja lokale e serverit
 
@@ -23,9 +22,10 @@ npm start
 
 Hapni shfletuesin në [http://localhost:4173](http://localhost:4173).
 
-### Konfigurimi Opsional i SMS me Operatorë (Twilio / Carrier):
+### Konfigurimi i email-it:
 Në skedarin `.env`:
-- `TWILIO_ACCOUNT_SID=...`
-- `TWILIO_AUTH_TOKEN=...`
-- `TWILIO_PHONE_NUMBER=...`
-*(Nëse nuk vendosen, serveri e regjistron kodin në console dhe dërgon previewCode për testim të pandërprerë në uebsajt).*
+- `GMAIL_USER=...`
+- `GMAIL_APP_PASSWORD=...`
+- `FRONTEND_ORIGIN=https://amerelezi2025.github.io/kalceto-shkoder`
+
+Nëse Gmail nuk është konfiguruar gjatë zhvillimit lokal, serveri e shfaq linkun e verifikimit në console dhe e kthen si `previewLink` për testim.

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
@@ -59,6 +59,10 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function isAllowedFrontendOrigin(origin) {
+  return Boolean(origin && (allowedOrigins.has(origin) || origin.endsWith(".github.io") || origin.endsWith(".onrender.com")));
+}
+
 // Normalizes Albanian phone number to +3556XXXXXXXX format
 function normalizeAlbanianPhone(raw) {
   if (!raw) return null;
@@ -99,6 +103,20 @@ function hashValue(value) {
   return createHash("sha256").update(String(value)).digest("hex");
 }
 
+function hashPassword(password) {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(String(password), salt, 64).toString("hex");
+  return `scrypt:${salt}:${hash}`;
+}
+
+function verifyPassword(stored, password) {
+  const [type, salt, hash] = String(stored || "").split(":");
+  if (type !== "scrypt" || !salt || !hash) return false;
+  const actual = Buffer.from(scryptSync(String(password), salt, 64).toString("hex"));
+  const expected = Buffer.from(hash);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
 function users() {
   return readJson("users.json", []);
 }
@@ -120,6 +138,22 @@ function saveCodes(map) {
   writeJson("codes.json", map);
 }
 
+function authLinks() {
+  return readJson("auth-links.json", {});
+}
+
+function saveAuthLinks(map) {
+  writeJson("auth-links.json", map);
+}
+
+function passwordChallenges() {
+  return readJson("password-challenges.json", {});
+}
+
+function savePasswordChallenges(map) {
+  writeJson("password-challenges.json", map);
+}
+
 const allowedOrigins = new Set([
   "https://amerelezi2025.github.io",
   "http://localhost:4173",
@@ -130,7 +164,7 @@ const allowedOrigins = new Set([
 function corsHeaders(request) {
   const origin = request.headers.origin;
   if (!origin) return {};
-  if (!allowedOrigins.has(origin) && !origin.endsWith(".github.io") && !origin.endsWith(".onrender.com")) return {};
+  if (!isAllowedFrontendOrigin(origin)) return {};
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Credentials": "true",
@@ -326,6 +360,185 @@ async function sendCodeEmail(email, code, intent) {
   return { sent: true, previewCode: code };
 }
 
+function verificationReturnUrl(request, returnTo, token) {
+  let base = "";
+  if (returnTo) {
+    try {
+      const url = new URL(returnTo);
+      if (isAllowedFrontendOrigin(url.origin)) {
+        base = `${url.origin}${url.pathname}`;
+      }
+    } catch {
+      base = "";
+    }
+  }
+  if (!base) {
+    const configured = (process.env.FRONTEND_ORIGIN || "").split(",").map((value) => value.trim()).filter(Boolean)[0];
+    const origin = isAllowedFrontendOrigin(request.headers.origin) ? request.headers.origin : configured;
+    if (origin) {
+      base = origin.replace(/\/+$/, "");
+    } else {
+      const proto = request.headers["x-forwarded-proto"] || "http";
+      base = `${proto}://${request.headers.host || `localhost:${port}`}`;
+    }
+  }
+  return `${base}?verify_email=${encodeURIComponent(token)}`;
+}
+
+async function sendVerificationLinkEmail(email, link) {
+  const subject = "Verifiko email-in për Kalceto";
+  const text = `Klikoni këtë link për të verifikuar email-in tuaj në Kalceto, pastaj vendosni fjalëkalimin: ${link}`;
+  if (!mailer) {
+    console.log(`[kalceto] Email not configured. Verification link for ${email}: ${link}`);
+    return { sent: true, previewLink: link };
+  }
+  await mailer.sendMail({
+    from: `"Kalceto Shkodër" <${gmailUser}>`,
+    to: email,
+    subject,
+    text,
+    html: `<div style="font-family:Arial,sans-serif;padding:24px;background:#f6f4ed;color:#13221c;max-width:520px;border-radius:8px">
+      <h2 style="margin:0 0 12px;color:#1e5a3f">KALCETO SHKODËR</h2>
+      <p style="line-height:1.5">Verifikoni email-in tuaj për të vazhduar hyrjen. Pas verifikimit do të vendosni fjalëkalimin.</p>
+      <p style="margin:24px 0"><a href="${link}" style="display:inline-block;background:#f46f43;color:white;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:4px">Verify email</a></p>
+      <p style="color:#69736c;font-size:13px;line-height:1.5">Ky link skadon pas 15 minutash. Nëse butoni nuk hapet, kopjoni këtë link në shfletues: ${link}</p>
+    </div>`
+  });
+  return { sent: true };
+}
+
+async function issueEmailLink(email, request, returnTo) {
+  const map = authLinks();
+  const now = Date.now();
+  const recentSends = [];
+  for (const [key, entry] of Object.entries(map)) {
+    if (!entry || entry.expiresAt < now) {
+      delete map[key];
+      continue;
+    }
+    if (entry.email === email) {
+      recentSends.push(...(entry.sentAt || [entry.createdAt]).filter((time) => now - time < 15 * 60 * 1000));
+      delete map[key];
+    }
+  }
+  if (recentSends.length >= 5) {
+    const error = new Error("Ju lutem prisni pak para se të kërkoni një link të ri.");
+    error.status = 429;
+    throw error;
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  const link = verificationReturnUrl(request, returnTo, token);
+  map[hashValue(token)] = {
+    email,
+    expiresAt: now + 15 * 60 * 1000,
+    createdAt: now,
+    sentAt: [...recentSends, now]
+  };
+  saveAuthLinks(map);
+  return await sendVerificationLinkEmail(email, link);
+}
+
+function verifyEmailLink(token) {
+  const map = authLinks();
+  const key = hashValue(token);
+  const entry = map[key];
+  if (!entry || entry.expiresAt < Date.now()) {
+    if (entry) {
+      delete map[key];
+      saveAuthLinks(map);
+    }
+    const error = new Error("Linku i verifikimit ka skaduar ose nuk ekziston. Kërkoni një link të ri.");
+    error.status = 400;
+    throw error;
+  }
+
+  delete map[key];
+  saveAuthLinks(map);
+
+  const challengeToken = randomBytes(32).toString("base64url");
+  const challenges = passwordChallenges();
+  challenges[hashValue(challengeToken)] = {
+    email: entry.email,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0
+  };
+  savePasswordChallenges(challenges);
+
+  const user = findUser(entry.email);
+  return {
+    email: entry.email,
+    passwordToken: challengeToken,
+    hasPassword: Boolean(user?.passwordHash)
+  };
+}
+
+function completePasswordAuth(email, password, passwordToken) {
+  const normalizedEmail = normalizeEmail(email);
+  const challenges = passwordChallenges();
+  const challengeKey = hashValue(passwordToken);
+  const challenge = challenges[challengeKey];
+  if (!challenge || challenge.expiresAt < Date.now() || challenge.email !== normalizedEmail) {
+    if (challenge) {
+      delete challenges[challengeKey];
+      savePasswordChallenges(challenges);
+    }
+    const error = new Error("Verifikimi i email-it nuk është më i vlefshëm. Kërkoni një link të ri.");
+    error.status = 401;
+    throw error;
+  }
+  if (challenge.attempts >= 5) {
+    const error = new Error("Shumë përpjekje të gabuara. Kërkoni një link të ri verifikimi.");
+    error.status = 429;
+    throw error;
+  }
+  if (String(password || "").length < 8) {
+    const error = new Error("Fjalëkalimi duhet të ketë të paktën 8 karaktere.");
+    error.status = 400;
+    throw error;
+  }
+
+  const list = users();
+  let user = list.find((item) => item.email === normalizedEmail);
+  const isNewUser = !user;
+
+  if (user?.passwordHash && !verifyPassword(user.passwordHash, password)) {
+    challenge.attempts += 1;
+    savePasswordChallenges(challenges);
+    const error = new Error("Fjalëkalimi nuk është i saktë.");
+    error.status = 401;
+    throw error;
+  }
+
+  if (!user) {
+    user = {
+      id: "usr_" + randomBytes(8).toString("hex"),
+      phone: null,
+      email: normalizedEmail,
+      verified: true,
+      passwordHash: hashPassword(password),
+      profile: {
+        displayName: "",
+        position: "Mesfushë",
+        area: "Parrucë",
+        level: "Regular"
+      },
+      createdAt: new Date().toISOString()
+    };
+    list.push(user);
+  } else {
+    user.verified = true;
+    user.email = normalizedEmail;
+    if (!user.passwordHash) user.passwordHash = hashPassword(password);
+  }
+
+  delete challenges[challengeKey];
+  savePasswordChallenges(challenges);
+  saveUsers(list);
+
+  return { user, isNewUser };
+}
+
 async function issueCode(identifier, intent, isPhone = true) {
   const map = codes();
   const current = map[identifier] || {};
@@ -365,6 +578,42 @@ async function handleAuth(request, response, pathname) {
 
     const body = await readBody(request);
 
+    if (request.method === "POST" && pathname === "/api/auth/send-link") {
+      const email = normalizeEmail(body.email);
+      if (!isValidEmail(email)) {
+        return json(response, 400, { error: "Vendosni një adresë të vlefshme email-i." }, {}, request);
+      }
+      const result = await issueEmailLink(email, request, body.returnTo);
+      return json(response, 200, {
+        sent: true,
+        email,
+        previewLink: result.previewLink || null
+      }, {}, request);
+    }
+
+    if (request.method === "POST" && pathname === "/api/auth/verify-link") {
+      const token = String(body.token || "").trim();
+      if (!token) {
+        return json(response, 400, { error: "Linku i verifikimit mungon." }, {}, request);
+      }
+      const result = verifyEmailLink(token);
+      return json(response, 200, result, {}, request);
+    }
+
+    if (request.method === "POST" && pathname === "/api/auth/password") {
+      const email = normalizeEmail(body.email);
+      if (!isValidEmail(email)) {
+        return json(response, 400, { error: "Vendosni një adresë të vlefshme email-i." }, {}, request);
+      }
+      const { user, isNewUser } = completePasswordAuth(email, body.password, body.passwordToken);
+      const token = signSession(user.id || user.email);
+      return json(response, 200, {
+        user: publicUser(user),
+        token,
+        isNewUser
+      }, { "Set-Cookie": sessionCookie(token) }, request);
+    }
+
     // Identify whether this request is using Phone or Email
     const isPhoneReq = Boolean(body.phone || (!body.email && body.identifier && !body.identifier.includes("@")));
     let identifier = "";
@@ -389,6 +638,12 @@ async function handleAuth(request, response, pathname) {
         exists: Boolean(user?.verified),
         identifier,
         formattedPhone: isPhoneReq ? formatAlbanianPhone(identifier) : null
+      }, {}, request);
+    }
+
+    if (request.method === "POST" && (pathname === "/api/auth/send-code" || pathname === "/api/auth/verify")) {
+      return json(response, 410, {
+        error: "Hyrja me kod verifikimi është zëvendësuar. Përdorni email link + fjalëkalim."
       }, {}, request);
     }
 
